@@ -3,7 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { Input } from '../components/ui/Input';
 import { isMicrosoftOAuthConfigured } from '../lib/microsoft/config';
+import { sendMailViaGraph } from '../lib/microsoft/sendMail';
 import { startMicrosoftLogin } from '../lib/microsoft/startLogin';
 import {
   buildCrmBackupPayload,
@@ -23,6 +25,11 @@ export function SettingsPage() {
   const backupInputRef = useRef<HTMLInputElement>(null);
   const msConnected = useMicrosoftAuthStore((s) => Boolean(s.refreshToken || s.accessToken));
   const clearMicrosoft = useMicrosoftAuthStore((s) => s.clear);
+  const [msTestTo, setMsTestTo] = useState('');
+  const [msTestSubject, setMsTestSubject] = useState('Biztomate CRM test');
+  const [msTestBody, setMsTestBody] = useState('<p>This is a test email from Biztomate CRM.</p>');
+  const [msSendState, setMsSendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [msSendError, setMsSendError] = useState<string | null>(null);
   const [showMicrosoftConnectedToast, setShowMicrosoftConnectedToast] = useState(false);
 
   useEffect(() => {
@@ -83,8 +90,65 @@ export function SettingsPage() {
             redeploy (Vercel) or restart the dev server.
           </p>
         ) : msConnected ? (
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-4">
             <p className="text-sm font-medium text-green-800">Microsoft account connected.</p>
+            <div className="rounded-lg border border-[var(--color-border)]/80 bg-gray-50/80 p-4">
+              <p className="text-sm font-medium text-gray-900">Send a test email</p>
+              <p className="mt-1 text-xs text-muted">
+                Mail is sent from your Microsoft mailbox via Graph (same place you connect above).
+              </p>
+              <label className="mt-3 block text-xs font-medium text-gray-700">To</label>
+              <Input
+                type="email"
+                className="mt-1"
+                placeholder="you@example.com"
+                value={msTestTo}
+                onChange={(e) => setMsTestTo(e.target.value)}
+                autoComplete="email"
+              />
+              <label className="mt-3 block text-xs font-medium text-gray-700">Subject</label>
+              <Input
+                className="mt-1"
+                value={msTestSubject}
+                onChange={(e) => setMsTestSubject(e.target.value)}
+              />
+              <label className="mt-3 block text-xs font-medium text-gray-700">HTML body</label>
+              <textarea
+                className="mt-1 w-full rounded-lg border border-[var(--color-border)] bg-white px-3 py-2 font-mono text-xs outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+                rows={4}
+                value={msTestBody}
+                onChange={(e) => setMsTestBody(e.target.value)}
+              />
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Button
+                  type="button"
+                  disabled={msSendState === 'sending' || !msTestTo.trim()}
+                  onClick={async () => {
+                    setMsSendState('sending');
+                    setMsSendError(null);
+                    try {
+                      await sendMailViaGraph({
+                        to: msTestTo.trim(),
+                        subject: msTestSubject.trim() || 'Test',
+                        html: msTestBody || '<p>(empty)</p>',
+                      });
+                      setMsSendState('sent');
+                    } catch (e) {
+                      setMsSendState('error');
+                      setMsSendError(e instanceof Error ? e.message : 'Send failed');
+                    }
+                  }}
+                >
+                  {msSendState === 'sending' ? 'Sending…' : 'Send test email'}
+                </Button>
+                {msSendState === 'sent' && (
+                  <span className="text-sm text-green-800">Sent. Check the recipient inbox.</span>
+                )}
+                {msSendState === 'error' && msSendError && (
+                  <span className="max-w-xl break-words text-sm text-red-700">{msSendError}</span>
+                )}
+              </div>
+            </div>
             <Button
               variant="outline"
               type="button"
@@ -113,8 +177,7 @@ export function SettingsPage() {
         )}
         {showMicrosoftConnectedToast && (
           <p className="mt-3 text-sm text-green-800" role="status">
-            Microsoft sign-in completed. Sending mail from campaigns still needs a send action wired to
-            Graph.
+            Microsoft sign-in completed. Use &quot;Send a test email&quot; below to verify mail.
           </p>
         )}
       </Card>

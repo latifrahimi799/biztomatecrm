@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Eye, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Eye, Mail, Trash2, X } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
@@ -17,6 +17,11 @@ import {
 import { formatDate, formatMoney } from '../lib/format';
 import { applyMergeFields } from '../lib/templateMerge';
 import { getTemplateBodyHtml } from '../lib/emailTemplateBody';
+import { getMicrosoftMailBlockReason } from '../lib/microsoft/mailPrereqs';
+import {
+  sendCampaignTemplateToMembers,
+  type CampaignSendResult,
+} from '../lib/microsoft/sendCampaignMails';
 
 const types: CampaignType[] = [
   'email',
@@ -49,6 +54,10 @@ export function CampaignDetailPage() {
   const [addLeadId, setAddLeadId] = useState('');
   const [previewPickContact, setPreviewPickContact] = useState('');
   const [previewPickLead, setPreviewPickLead] = useState('');
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendProgress, setSendProgress] = useState('');
+  const [sendResult, setSendResult] = useState<CampaignSendResult | null>(null);
+  const [sendRunning, setSendRunning] = useState(false);
 
   const campaign = campaigns.find((c) => c.id === id);
   const template = templates.find((t) => t.id === campaign?.templateId);
@@ -91,6 +100,21 @@ export function CampaignDetailPage() {
 
   const merged = mergedSample();
 
+  const recipientCount = useMemo(() => {
+    let n = 0;
+    for (const cid of campaign.contactIds) {
+      const c = contacts.find((x) => x.id === cid);
+      if (c?.email?.trim()) n++;
+    }
+    for (const lid of campaign.leadIds) {
+      const l = leads.find((x) => x.id === lid);
+      if (l?.email?.trim()) n++;
+    }
+    return n;
+  }, [campaign.contactIds, campaign.leadIds, contacts, leads]);
+
+  const mailBlock = getMicrosoftMailBlockReason();
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Link
@@ -104,10 +128,24 @@ export function CampaignDetailPage() {
         <h2 className="text-2xl font-semibold text-gray-900">{campaign.name}</h2>
         <div className="flex flex-wrap gap-2">
           {template ? (
-            <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)}>
-              <Eye className="h-4 w-4" />
-              Preview email
-            </Button>
+            <>
+              <Button type="button" variant="outline" onClick={() => setPreviewOpen(true)}>
+                <Eye className="h-4 w-4" />
+                Preview email
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setSendResult(null);
+                  setSendProgress('');
+                  setSendOpen(true);
+                }}
+                disabled={recipientCount === 0}
+              >
+                <Mail className="h-4 w-4" />
+                Send to members
+              </Button>
+            </>
           ) : null}
           <Button
             variant="danger"
@@ -391,6 +429,99 @@ export function CampaignDetailPage() {
           </div>
         </div>
       </Card>
+
+      <Modal
+        open={sendOpen}
+        onClose={() => !sendRunning && setSendOpen(false)}
+        title="Send campaign email"
+        className="max-w-lg"
+      >
+        {template ? (
+          <div className="space-y-4 text-sm">
+            <p className="text-muted">
+              Sends the template <span className="font-medium text-gray-900">{template.name}</span>{' '}
+              once per member that has an email, from your Microsoft mailbox. Merge fields like{' '}
+              <span className="font-mono text-xs">{'{{'}FirstName{'}}'}</span> are filled per
+              recipient.
+            </p>
+            {mailBlock ? (
+              <p className="rounded-lg bg-amber-50 p-3 text-amber-950">{mailBlock}</p>
+            ) : (
+              <>
+                <p>
+                  <span className="font-medium text-gray-900">{recipientCount}</span> message
+                  {recipientCount === 1 ? '' : 's'} will be sent
+                  {recipientCount === 0 ? ' (add members with email addresses).' : '.'}
+                </p>
+                {sendProgress ? (
+                  <p className="font-mono text-xs text-muted">Progress: {sendProgress}</p>
+                ) : null}
+                {sendResult ? (
+                  <div className="rounded-lg border border-[var(--color-border)] bg-gray-50 p-3 text-xs">
+                    <p className="font-medium text-gray-900">
+                      Sent {sendResult.sent}
+                      {sendResult.skippedNoEmail > 0
+                        ? ` · Skipped (no email): ${sendResult.skippedNoEmail}`
+                        : ''}
+                    </p>
+                    {sendResult.errors.length > 0 ? (
+                      <ul className="mt-2 max-h-32 list-inside list-disc overflow-y-auto text-red-800">
+                        {sendResult.errors.map((e, i) => (
+                          <li key={i} className="break-words">
+                            {e}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={sendRunning}
+                    onClick={() => setSendOpen(false)}
+                  >
+                    {sendResult ? 'Close' : 'Cancel'}
+                  </Button>
+                  {!sendResult && recipientCount > 0 ? (
+                    <Button
+                      type="button"
+                      disabled={sendRunning || Boolean(mailBlock)}
+                      onClick={async () => {
+                        setSendRunning(true);
+                        setSendProgress('');
+                        setSendResult(null);
+                        try {
+                          const r = await sendCampaignTemplateToMembers(
+                            campaign,
+                            template,
+                            contacts,
+                            leads,
+                            companies,
+                            (done, total) => setSendProgress(`${done} / ${total}`),
+                          );
+                          setSendResult(r);
+                        } catch (e) {
+                          setSendResult({
+                            sent: 0,
+                            skippedNoEmail: 0,
+                            errors: [e instanceof Error ? e.message : 'Failed'],
+                          });
+                        } finally {
+                          setSendRunning(false);
+                        }
+                      }}
+                    >
+                      {sendRunning ? 'Sending…' : 'Send now'}
+                    </Button>
+                  ) : null}
+                </div>
+              </>
+            )}
+          </div>
+        ) : null}
+      </Modal>
 
       <Modal
         open={previewOpen}

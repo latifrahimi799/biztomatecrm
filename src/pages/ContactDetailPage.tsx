@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Mail, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardTitle } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
@@ -11,6 +11,9 @@ import { Select } from '../components/ui/Select';
 import { useCrmStore } from '../store/crmStore';
 import type { ContactLifecycle } from '../types/crm';
 import { formatDateTime } from '../lib/format';
+import { getMicrosoftMailBlockReason } from '../lib/microsoft/mailPrereqs';
+import { sendMailViaGraph } from '../lib/microsoft/sendMail';
+import { applyMergeFields } from '../lib/templateMerge';
 import { ACTIVITY_TYPE_LABEL } from '../types/crm';
 
 const lifecycles: ContactLifecycle[] = ['subscriber', 'lead', 'customer', 'churned'];
@@ -30,6 +33,26 @@ export function ContactDetailPage() {
 
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteSubject, setNoteSubject] = useState('');
+  const [mailSubject, setMailSubject] = useState('');
+  const [mailBody, setMailBody] = useState('');
+  const [mailSending, setMailSending] = useState(false);
+  const [mailMsg, setMailMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    const c = useCrmStore.getState().contacts.find((x) => x.id === id);
+    if (!c) return;
+    const co = useCrmStore.getState().companies.find((x) => x.id === c.companyId);
+    const ctx = { contact: c, companyName: co?.name };
+    setMailSubject(applyMergeFields('Hello {{FirstName}}', ctx));
+    setMailBody(
+      applyMergeFields(
+        '<p>Hi {{FirstName}},</p><p>Quick note from our team.</p>',
+        ctx,
+      ),
+    );
+    setMailMsg(null);
+  }, [id]);
 
   const relatedDeals = useMemo(
     () => deals.filter((d) => d.contactIds.includes(id!)),
@@ -51,6 +74,7 @@ export function ContactDetailPage() {
   }
 
   const company = companies.find((c) => c.id === contact.companyId);
+  const mailBlock = getMicrosoftMailBlockReason();
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -208,6 +232,73 @@ export function ContactDetailPage() {
                 ))
               )}
             </ul>
+          </Card>
+
+          <Card>
+            <CardTitle>Send email</CardTitle>
+            <p className="mt-1 text-sm text-muted">
+              Sends from your connected Microsoft mailbox (same as Settings → test email).
+            </p>
+            {mailBlock ? (
+              <p className="mt-3 text-sm text-amber-900">{mailBlock}</p>
+            ) : !contact.email?.trim() ? (
+              <p className="mt-3 text-sm text-muted">Add an email address in the profile first.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs text-muted">To: {contact.email}</p>
+                <div>
+                  <label className="text-xs font-medium text-muted">Subject</label>
+                  <Input className="mt-1" value={mailSubject} onChange={(e) => setMailSubject(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted">HTML body</label>
+                  <Textarea
+                    className="mt-1 min-h-[120px] font-mono text-xs"
+                    value={mailBody}
+                    onChange={(e) => setMailBody(e.target.value)}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  disabled={mailSending || !mailSubject.trim()}
+                  onClick={async () => {
+                    setMailSending(true);
+                    setMailMsg(null);
+                    try {
+                      await sendMailViaGraph({
+                        to: contact.email,
+                        subject: mailSubject.trim(),
+                        html: mailBody.trim() || '<p></p>',
+                      });
+                      setMailMsg({ kind: 'ok', text: 'Email sent.' });
+                      addActivity({
+                        type: 'email',
+                        subject: `Email sent: ${mailSubject.trim().slice(0, 80)}`,
+                        relatedType: 'contact',
+                        relatedId: contact.id,
+                        ownerId: 'user-1',
+                      });
+                    } catch (e) {
+                      setMailMsg({
+                        kind: 'err',
+                        text: e instanceof Error ? e.message : 'Send failed',
+                      });
+                    } finally {
+                      setMailSending(false);
+                    }
+                  }}
+                >
+                  <Mail className="h-4 w-4" />
+                  {mailSending ? 'Sending…' : 'Send email'}
+                </Button>
+                {mailMsg?.kind === 'ok' && (
+                  <p className="text-sm text-green-800">{mailMsg.text}</p>
+                )}
+                {mailMsg?.kind === 'err' && (
+                  <p className="break-words text-sm text-red-700">{mailMsg.text}</p>
+                )}
+              </div>
+            )}
           </Card>
 
           <Card>
