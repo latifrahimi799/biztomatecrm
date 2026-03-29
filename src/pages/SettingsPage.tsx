@@ -186,11 +186,13 @@ export function SettingsPage() {
         <CardTitle>Where your data lives</CardTitle>
         <p className="mt-2 text-sm text-muted">
           CRM records (contacts, deals, campaigns, templates, and so on) are stored in{' '}
-          <strong className="font-medium text-gray-800">this browser only</strong>, not in Supabase
-          yet. Your local dev site, production URL on Vercel, and another device each have separate
-          storage — that is why entries you created on one place do not appear on another.
-          Supabase on this project is currently used for email template image uploads, not for syncing
-          the full CRM database.
+          <strong className="font-medium text-gray-800">this browser only</strong> (localStorage),
+          not in Postgres yet. Each origin is separate — a Vercel <em>preview</em> URL is a different
+          site than production, so it looks like data &quot;disappeared&quot; when you open another
+          URL. Production builds also start <strong>without</strong> demo companies/templates unless
+          you set <span className="font-mono text-xs">VITE_DEMO_DATA=true</span>. Full multi-device
+          sync requires wiring this app to your Supabase tables (schema is already in
+          <span className="font-mono text-xs"> supabase/migrations</span>) and optional Auth + RLS.
         </p>
       </Card>
 
@@ -262,20 +264,27 @@ export function SettingsPage() {
       </Card>
 
       <Card>
-        <CardTitle>Data & demo reset</CardTitle>
+        <CardTitle>Clear CRM data</CardTitle>
         <p className="mt-2 text-sm text-muted">
-          Clears persisted CRM records in this browser and reloads sample Biztomate data. Auth
-          session is kept.
+          Removes persisted CRM records in this browser and restores the initial workspace (empty in
+          production, or demo dataset in local dev when demo mode is on). Microsoft connection and
+          login session are kept.
         </p>
         <Button
           variant="outline"
           className="mt-4"
           type="button"
           onClick={() => {
-            if (confirm('Reset all CRM data to the built-in demo dataset?')) resetDemoData();
+            if (
+              confirm(
+                'Clear all CRM data in this browser and restore the initial workspace? This cannot be undone.',
+              )
+            ) {
+              resetDemoData();
+            }
           }}
         >
-          Reset demo data
+          Clear CRM data
         </Button>
       </Card>
 

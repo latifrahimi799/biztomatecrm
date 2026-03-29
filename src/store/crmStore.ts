@@ -23,6 +23,22 @@ const uid = () => crypto.randomUUID();
 
 const OWNER = 'user-1';
 
+/** Single owner row used when CRM starts empty (production). */
+const minimalTeam: TeamMember[] = [
+  { id: OWNER, name: 'Workspace owner', email: 'owner@workspace.local', role: 'admin' },
+];
+
+/**
+ * Demo Northwind-style dataset (development only unless VITE_DEMO_DATA=true).
+ * Production builds start with an empty CRM so data is not wiped-looking on each device.
+ */
+function useDemoSeed(): boolean {
+  const flag = import.meta.env.VITE_DEMO_DATA;
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  return import.meta.env.DEV;
+}
+
 const seedCompanies: Company[] = [
   {
     id: 'co-1',
@@ -448,17 +464,32 @@ function buildInitial(): Pick<
   | 'campaigns'
   | 'searchQuery'
 > {
+  if (useDemoSeed()) {
+    return {
+      companies: seedCompanies,
+      contacts: seedContacts,
+      deals: seedDeals,
+      activities: seedActivities,
+      leads: seedLeads,
+      products: seedProducts,
+      quotes: seedQuotes,
+      team: seedTeam,
+      emailTemplates: seedEmailTemplates,
+      campaigns: seedCampaigns,
+      searchQuery: '',
+    };
+  }
   return {
-    companies: seedCompanies,
-    contacts: seedContacts,
-    deals: seedDeals,
-    activities: seedActivities,
-    leads: seedLeads,
-    products: seedProducts,
-    quotes: seedQuotes,
-    team: seedTeam,
-    emailTemplates: seedEmailTemplates,
-    campaigns: seedCampaigns,
+    companies: [],
+    contacts: [],
+    deals: [],
+    activities: [],
+    leads: [],
+    products: [],
+    quotes: [],
+    team: minimalTeam,
+    emailTemplates: [],
+    campaigns: [],
     searchQuery: '',
   };
 }
