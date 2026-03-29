@@ -361,6 +361,77 @@ interface CrmState {
 
   setSearchQuery: (q: string) => void;
   resetDemoData: () => void;
+  /** Replace CRM entity data from a backup file (same shape as export). */
+  importCrmBackup: (payload: CrmBackupV1) => void;
+}
+
+export const CRM_BACKUP_VERSION = 1 as const;
+
+/** Persisted CRM entities — matches zustand `partialize` keys. */
+export type CrmPersistedData = Pick<
+  CrmState,
+  | 'companies'
+  | 'contacts'
+  | 'deals'
+  | 'activities'
+  | 'leads'
+  | 'products'
+  | 'quotes'
+  | 'team'
+  | 'emailTemplates'
+  | 'campaigns'
+>;
+
+export type CrmBackupV1 = {
+  v: typeof CRM_BACKUP_VERSION;
+  exportedAt: string;
+  crm: CrmPersistedData;
+};
+
+function isCrmPersistedData(c: unknown): c is CrmPersistedData {
+  if (!c || typeof c !== 'object') return false;
+  const o = c as Record<string, unknown>;
+  const keys: (keyof CrmPersistedData)[] = [
+    'companies',
+    'contacts',
+    'deals',
+    'activities',
+    'leads',
+    'products',
+    'quotes',
+    'team',
+    'emailTemplates',
+    'campaigns',
+  ];
+  return keys.every((k) => Array.isArray(o[k]));
+}
+
+/** Parse JSON from a downloaded backup; returns null if invalid. */
+export function tryParseCrmBackup(raw: unknown): CrmBackupV1 | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (o.v !== CRM_BACKUP_VERSION || typeof o.exportedAt !== 'string') return null;
+  if (!isCrmPersistedData(o.crm)) return null;
+  return { v: CRM_BACKUP_VERSION, exportedAt: o.exportedAt, crm: o.crm };
+}
+
+export function buildCrmBackupPayload(state: CrmPersistedData & { searchQuery?: string }): CrmBackupV1 {
+  return {
+    v: CRM_BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    crm: {
+      companies: state.companies,
+      contacts: state.contacts,
+      deals: state.deals,
+      activities: state.activities,
+      leads: state.leads,
+      products: state.products,
+      quotes: state.quotes,
+      team: state.team,
+      emailTemplates: state.emailTemplates,
+      campaigns: state.campaigns,
+    },
+  };
 }
 
 function buildInitial(): Pick<
@@ -697,6 +768,12 @@ export const useCrmStore = create<CrmState>()(
       setSearchQuery: (searchQuery) => set({ searchQuery }),
 
       resetDemoData: () => set(buildInitial()),
+
+      importCrmBackup: (payload) =>
+        set({
+          ...payload.crm,
+          searchQuery: '',
+        }),
     }),
     {
       name: 'biztomate-crm-data',

@@ -20,6 +20,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { EmailTemplatesPage } from './pages/EmailTemplatesPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { CampaignDetailPage } from './pages/CampaignDetailPage';
+import { MicrosoftOAuthCallbackPage } from './pages/MicrosoftOAuthCallbackPage';
 
 function Protected({ children }: { children: ReactNode }) {
   const email = useAuthStore((s) => s.userEmail);
@@ -35,6 +36,7 @@ export default function App() {
       <BackgroundWatermark />
       <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/microsoft/callback" element={<MicrosoftOAuthCallbackPage />} />
       <Route
         element={
           <Protected>
