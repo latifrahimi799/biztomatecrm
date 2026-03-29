@@ -1,0 +1,726 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type {
+  Activity,
+  Campaign,
+  Company,
+  Contact,
+  Deal,
+  DealStage,
+  EmailTemplate,
+  Id,
+  Lead,
+  Product,
+  Quote,
+  TeamMember,
+} from '../types/crm';
+import { blocksToEmailHtml } from '../lib/emailBlocks/renderEmailHtml';
+import { createTextBlock, createButtonBlock } from '../lib/emailBlocks/blockFactory';
+import { defaultTextStyle } from '../types/emailBlocks';
+
+const now = () => new Date().toISOString();
+const uid = () => crypto.randomUUID();
+
+const OWNER = 'user-1';
+
+const seedCompanies: Company[] = [
+  {
+    id: 'co-1',
+    name: 'Northwind Traders',
+    industry: 'Retail',
+    website: 'https://northwind.example',
+    phone: '+1 415 555 0100',
+    employeeCount: '500–1000',
+    address: 'San Francisco, CA',
+    ownerId: OWNER,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+  {
+    id: 'co-2',
+    name: 'Contoso Labs',
+    industry: 'Technology',
+    website: 'https://contoso.example',
+    phone: '+44 20 7946 0958',
+    employeeCount: '50–200',
+    address: 'London, UK',
+    ownerId: OWNER,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+];
+
+const seedContacts: Contact[] = [
+  {
+    id: 'ct-1',
+    firstName: 'Sarah',
+    lastName: 'Chen',
+    email: 's.chen@northwind.example',
+    phone: '+1 415 555 0142',
+    jobTitle: 'VP Operations',
+    companyId: 'co-1',
+    ownerId: OWNER,
+    tags: ['decision-maker', 'priority'],
+    source: 'Biztomate Scanner event',
+    lifecycle: 'customer',
+    createdAt: now(),
+    updatedAt: now(),
+    notes: 'Interested in enterprise rollout for field teams.',
+  },
+  {
+    id: 'ct-2',
+    firstName: 'James',
+    lastName: 'Okonkwo',
+    email: 'j.okonkwo@contoso.example',
+    phone: '+44 20 7946 0881',
+    jobTitle: 'Head of IT',
+    companyId: 'co-2',
+    ownerId: OWNER,
+    tags: ['technical'],
+    source: 'LinkedIn',
+    lifecycle: 'lead',
+    createdAt: now(),
+    updatedAt: now(),
+  },
+];
+
+const seedDeals: Deal[] = [
+  {
+    id: 'dl-1',
+    name: 'Northwind — Annual platform',
+    companyId: 'co-1',
+    contactIds: ['ct-1'],
+    stage: 'negotiation',
+    value: 48000,
+    currency: 'CAD',
+    probability: 70,
+    expectedCloseDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
+    ownerId: OWNER,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+  {
+    id: 'dl-2',
+    name: 'Contoso — Pilot + 50 seats',
+    companyId: 'co-2',
+    contactIds: ['ct-2'],
+    stage: 'proposal',
+    value: 12000,
+    currency: 'GBP',
+    probability: 40,
+    expectedCloseDate: new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10),
+    ownerId: OWNER,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+  {
+    id: 'dl-3',
+    name: 'Inbound SMB — starter',
+    companyId: undefined,
+    contactIds: [],
+    stage: 'lead',
+    value: 2400,
+    currency: 'CAD',
+    probability: 15,
+    ownerId: OWNER,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+];
+
+const seedActivities: Activity[] = [
+  {
+    id: 'ac-1',
+    type: 'meeting',
+    subject: 'Q2 renewal discussion — Northwind',
+    body: 'Review success metrics and expansion seats.',
+    dueAt: new Date(Date.now() + 2 * 86400000).toISOString(),
+    relatedType: 'deal',
+    relatedId: 'dl-1',
+    ownerId: OWNER,
+    createdAt: now(),
+  },
+  {
+    id: 'ac-2',
+    type: 'call',
+    subject: 'Technical scoping with James',
+    relatedType: 'contact',
+    relatedId: 'ct-2',
+    ownerId: OWNER,
+    createdAt: now(),
+  },
+  {
+    id: 'ac-3',
+    type: 'task',
+    subject: 'Send updated quote for Contoso pilot',
+    dueAt: new Date(Date.now() + 1 * 86400000).toISOString(),
+    relatedType: 'deal',
+    relatedId: 'dl-2',
+    ownerId: OWNER,
+    createdAt: now(),
+  },
+];
+
+const seedLeads: Lead[] = [
+  {
+    id: 'ld-1',
+    name: 'Maria Volkov',
+    email: 'maria.v@example.org',
+    company: 'BrightPath Health',
+    status: 'working',
+    score: 72,
+    source: 'Website form',
+    ownerId: OWNER,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+  {
+    id: 'ld-2',
+    name: 'David Park',
+    email: 'd.park@example.org',
+    company: 'Urban Logistics Co',
+    status: 'new',
+    score: 45,
+    source: 'Referral',
+    ownerId: OWNER,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+];
+
+const seedProducts: Product[] = [
+  {
+    id: 'pr-1',
+    name: 'Biztomate Scanner — Basic',
+    sku: 'BTM-BASIC-M',
+    unitPrice: 9.99,
+    currency: 'CAD',
+    active: true,
+    createdAt: now(),
+  },
+  {
+    id: 'pr-2',
+    name: 'Biztomate Scanner — Premium',
+    sku: 'BTM-PREM-Y',
+    unitPrice: 79,
+    currency: 'CAD',
+    active: true,
+    createdAt: now(),
+  },
+  {
+    id: 'pr-3',
+    name: 'Enterprise — per seat / year',
+    sku: 'BTM-ENT-SEAT',
+    unitPrice: 120,
+    currency: 'CAD',
+    active: true,
+    createdAt: now(),
+  },
+];
+
+const seedQuotes: Quote[] = [
+  {
+    id: 'qu-1',
+    title: 'Northwind expansion Q2',
+    dealId: 'dl-1',
+    companyId: 'co-1',
+    contactId: 'ct-1',
+    lines: [
+      { productId: 'pr-3', quantity: 200, discountPct: 10 },
+    ],
+    status: 'sent',
+    validUntil: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    ownerId: OWNER,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+];
+
+const seedTeam: TeamMember[] = [
+  { id: 'user-1', name: 'Alex Morgan', email: 'alex@biztomate.com', role: 'admin' },
+  { id: 'user-2', name: 'Jordan Lee', email: 'jordan@biztomate.com', role: 'sales' },
+  { id: 'user-3', name: 'Casey Rivera', email: 'casey@biztomate.com', role: 'marketing' },
+];
+
+const seedTemplateBlocks = [
+  {
+    ...createTextBlock(),
+    id: 'eb-seed-1',
+    content:
+      'Hi {{FirstName}} {{LastName}},\n\nThanks for your interest in automation at {{Company}}.\n\n— The Biztomate team',
+    style: { ...defaultTextStyle(), fontSize: 17 },
+  },
+  {
+    ...createButtonBlock(),
+    id: 'eb-seed-2',
+    label: 'See how it works',
+    href: 'https://biztomate.com',
+  },
+];
+
+const seedTemplateBody = blocksToEmailHtml([...seedTemplateBlocks]);
+
+const seedEmailTemplates: EmailTemplate[] = [
+  {
+    id: 'tmpl-1',
+    name: 'Q2 product intro',
+    subject: 'Hi {{FirstName}} — quick note from Biztomate',
+    body: seedTemplateBody,
+    bodyFormat: 'blocks',
+    blocks: [...seedTemplateBlocks],
+    category: 'campaign',
+    active: true,
+    ownerId: OWNER,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+];
+
+const seedCampaigns: Campaign[] = [
+  {
+    id: 'cmp-1',
+    name: 'Spring scanner launch',
+    type: 'email',
+    status: 'active',
+    startDate: new Date().toISOString().slice(0, 10),
+    endDate: new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10),
+    budgetedCost: 5000,
+    actualCost: 1200,
+    expectedRevenue: 40000,
+    currency: 'CAD',
+    description: 'Email series to existing customers and warm leads.',
+    templateId: 'tmpl-1',
+    contactIds: ['ct-1'],
+    leadIds: ['ld-1'],
+    ownerId: OWNER,
+    createdAt: now(),
+    updatedAt: now(),
+  },
+];
+
+interface CrmState {
+  companies: Company[];
+  contacts: Contact[];
+  deals: Deal[];
+  activities: Activity[];
+  leads: Lead[];
+  products: Product[];
+  quotes: Quote[];
+  team: TeamMember[];
+  emailTemplates: EmailTemplate[];
+  campaigns: Campaign[];
+  searchQuery: string;
+
+  addCompany: (c: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateCompany: (id: Id, patch: Partial<Company>) => void;
+  removeCompany: (id: Id) => void;
+
+  addContact: (c: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>) => Contact;
+  updateContact: (id: Id, patch: Partial<Contact>) => void;
+  removeContact: (id: Id) => void;
+
+  addDeal: (d: Omit<Deal, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateDeal: (id: Id, patch: Partial<Deal>) => void;
+  moveDealStage: (id: Id, stage: DealStage) => void;
+  removeDeal: (id: Id) => void;
+
+  addActivity: (a: Omit<Activity, 'id' | 'createdAt'>) => void;
+  updateActivity: (id: Id, patch: Partial<Activity>) => void;
+  completeActivity: (id: Id) => void;
+  removeActivity: (id: Id) => void;
+
+  addLead: (patch: Partial<Lead>) => void;
+  updateLead: (id: Id, patch: Partial<Lead>) => void;
+  convertLead: (
+    leadId: Id,
+    overrides?: Partial<Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>>,
+  ) => void;
+
+  addProduct: (p: Omit<Product, 'id' | 'createdAt'>) => void;
+  updateProduct: (id: Id, patch: Partial<Product>) => void;
+
+  addQuote: (q: Omit<Quote, 'id' | 'createdAt' | 'updatedAt' | 'lines'>) => Quote;
+  updateQuote: (id: Id, patch: Partial<Quote>) => void;
+
+  addEmailTemplate: (t: Omit<EmailTemplate, 'id' | 'createdAt' | 'updatedAt'>) => EmailTemplate;
+  updateEmailTemplate: (id: Id, patch: Partial<EmailTemplate>) => void;
+  removeEmailTemplate: (id: Id) => void;
+
+  addCampaign: (
+    c: Omit<Campaign, 'id' | 'createdAt' | 'updatedAt' | 'contactIds' | 'leadIds'> & {
+      contactIds?: Id[];
+      leadIds?: Id[];
+    },
+  ) => Campaign;
+  updateCampaign: (id: Id, patch: Partial<Campaign>) => void;
+  removeCampaign: (id: Id) => void;
+  addCampaignContact: (campaignId: Id, contactId: Id) => void;
+  removeCampaignContact: (campaignId: Id, contactId: Id) => void;
+  addCampaignLead: (campaignId: Id, leadId: Id) => void;
+  removeCampaignLead: (campaignId: Id, leadId: Id) => void;
+
+  setSearchQuery: (q: string) => void;
+  resetDemoData: () => void;
+}
+
+function buildInitial(): Pick<
+  CrmState,
+  | 'companies'
+  | 'contacts'
+  | 'deals'
+  | 'activities'
+  | 'leads'
+  | 'products'
+  | 'quotes'
+  | 'team'
+  | 'emailTemplates'
+  | 'campaigns'
+  | 'searchQuery'
+> {
+  return {
+    companies: seedCompanies,
+    contacts: seedContacts,
+    deals: seedDeals,
+    activities: seedActivities,
+    leads: seedLeads,
+    products: seedProducts,
+    quotes: seedQuotes,
+    team: seedTeam,
+    emailTemplates: seedEmailTemplates,
+    campaigns: seedCampaigns,
+    searchQuery: '',
+  };
+}
+
+export const useCrmStore = create<CrmState>()(
+  persist(
+    (set, get) => ({
+      ...buildInitial(),
+
+      addCompany: (c) =>
+        set((s) => ({
+          companies: [
+            ...s.companies,
+            {
+              ...c,
+              id: uid(),
+              createdAt: now(),
+              updatedAt: now(),
+            },
+          ],
+        })),
+
+      updateCompany: (id, patch) =>
+        set((s) => ({
+          companies: s.companies.map((x) =>
+            x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
+          ),
+        })),
+
+      removeCompany: (id) =>
+        set((s) => ({
+          companies: s.companies.filter((x) => x.id !== id),
+          contacts: s.contacts.map((c) => (c.companyId === id ? { ...c, companyId: undefined } : c)),
+        })),
+
+      addContact: (c) => {
+        const row: Contact = {
+          ...c,
+          tags: c.tags ?? [],
+          id: uid(),
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        set((s) => ({ contacts: [...s.contacts, row] }));
+        return row;
+      },
+
+      updateContact: (id, patch) =>
+        set((s) => ({
+          contacts: s.contacts.map((x) =>
+            x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
+          ),
+        })),
+
+      removeContact: (id) =>
+        set((s) => ({
+          contacts: s.contacts.filter((x) => x.id !== id),
+          deals: s.deals.map((d) => ({
+            ...d,
+            contactIds: d.contactIds.filter((cid) => cid !== id),
+          })),
+          campaigns: s.campaigns.map((c) => ({
+            ...c,
+            contactIds: c.contactIds.filter((cid) => cid !== id),
+          })),
+        })),
+
+      addDeal: (d) =>
+        set((s) => ({
+          deals: [
+            ...s.deals,
+            { ...d, id: uid(), createdAt: now(), updatedAt: now() },
+          ],
+        })),
+
+      updateDeal: (id, patch) =>
+        set((s) => ({
+          deals: s.deals.map((x) =>
+            x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
+          ),
+        })),
+
+      moveDealStage: (id, stage) =>
+        set((s) => ({
+          deals: s.deals.map((x) =>
+            x.id === id ? { ...x, stage, updatedAt: now() } : x,
+          ),
+        })),
+
+      removeDeal: (id) =>
+        set((s) => ({ deals: s.deals.filter((x) => x.id !== id) })),
+
+      addActivity: (a) =>
+        set((s) => ({
+          activities: [{ ...a, id: uid(), createdAt: now() }, ...s.activities],
+        })),
+
+      updateActivity: (id, patch) =>
+        set((s) => ({
+          activities: s.activities.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+        })),
+
+      completeActivity: (id) =>
+        set((s) => ({
+          activities: s.activities.map((x) =>
+            x.id === id ? { ...x, completedAt: now() } : x,
+          ),
+        })),
+
+      removeActivity: (id) =>
+        set((s) => ({ activities: s.activities.filter((x) => x.id !== id) })),
+
+      addLead: (patch) =>
+        set((s) => ({
+          leads: [
+            ...s.leads,
+            {
+                id: uid(),
+                name: patch.name ?? 'New lead',
+                email: patch.email ?? '',
+                company: patch.company,
+                phone: patch.phone,
+                status: patch.status ?? 'new',
+                score: patch.score ?? 0,
+                source: patch.source ?? 'Manual',
+                notes: patch.notes,
+                ownerId: patch.ownerId ?? OWNER,
+                createdAt: now(),
+                updatedAt: now(),
+              },
+          ],
+        })),
+
+      updateLead: (id, patch) =>
+        set((s) => ({
+          leads: s.leads.map((x) =>
+            x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
+          ),
+        })),
+
+      convertLead: (leadId, overrides = {}) => {
+        const lead = get().leads.find((l) => l.id === leadId);
+        if (!lead) return;
+        const [firstName, ...rest] = lead.name.trim().split(/\s+/);
+        const lastName = rest.join(' ') || '—';
+        get().addContact({
+          firstName: overrides.firstName ?? firstName,
+          lastName: overrides.lastName ?? lastName,
+          email: overrides.email ?? lead.email,
+          phone: overrides.phone ?? lead.phone,
+          jobTitle: overrides.jobTitle,
+          companyId: overrides.companyId,
+          ownerId: overrides.ownerId ?? lead.ownerId,
+          tags: overrides.tags?.length ? overrides.tags : ['converted-lead'],
+          source: overrides.source ?? lead.source,
+          lifecycle: overrides.lifecycle ?? 'customer',
+          notes: overrides.notes ?? lead.notes,
+        });
+        get().updateLead(leadId, { status: 'converted' });
+      },
+
+      addProduct: (p) =>
+        set((s) => ({
+          products: [...s.products, { ...p, id: uid(), createdAt: now() }],
+        })),
+
+      updateProduct: (id, patch) =>
+        set((s) => ({
+          products: s.products.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+        })),
+
+      addQuote: (q) => {
+        const row: Quote = {
+          ...q,
+          id: uid(),
+          lines: [],
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        set((s) => ({ quotes: [...s.quotes, row] }));
+        return row;
+      },
+
+      updateQuote: (id, patch) =>
+        set((s) => ({
+          quotes: s.quotes.map((x) =>
+            x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
+          ),
+        })),
+
+      addEmailTemplate: (t) => {
+        const row: EmailTemplate = {
+          ...t,
+          id: uid(),
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        set((s) => ({ emailTemplates: [...s.emailTemplates, row] }));
+        return row;
+      },
+
+      updateEmailTemplate: (id, patch) =>
+        set((s) => ({
+          emailTemplates: s.emailTemplates.map((x) =>
+            x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
+          ),
+        })),
+
+      removeEmailTemplate: (id) =>
+        set((s) => ({
+          emailTemplates: s.emailTemplates.filter((x) => x.id !== id),
+          campaigns: s.campaigns.map((c) =>
+            c.templateId === id ? { ...c, templateId: undefined, updatedAt: now() } : c,
+          ),
+        })),
+
+      addCampaign: (c) => {
+        const row: Campaign = {
+          name: c.name,
+          type: c.type,
+          status: c.status,
+          startDate: c.startDate,
+          endDate: c.endDate,
+          budgetedCost: c.budgetedCost,
+          actualCost: c.actualCost,
+          expectedRevenue: c.expectedRevenue,
+          currency: c.currency ?? 'CAD',
+          description: c.description,
+          templateId: c.templateId,
+          contactIds: c.contactIds ?? [],
+          leadIds: c.leadIds ?? [],
+          ownerId: c.ownerId,
+          id: uid(),
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        set((s) => ({ campaigns: [...s.campaigns, row] }));
+        return row;
+      },
+
+      updateCampaign: (id, patch) =>
+        set((s) => ({
+          campaigns: s.campaigns.map((x) =>
+            x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
+          ),
+        })),
+
+      removeCampaign: (id) =>
+        set((s) => ({ campaigns: s.campaigns.filter((x) => x.id !== id) })),
+
+      addCampaignContact: (campaignId, contactId) =>
+        set((s) => ({
+          campaigns: s.campaigns.map((c) =>
+            c.id !== campaignId
+              ? c
+              : c.contactIds.includes(contactId)
+                ? c
+                : {
+                    ...c,
+                    contactIds: [...c.contactIds, contactId],
+                    updatedAt: now(),
+                  },
+          ),
+        })),
+
+      removeCampaignContact: (campaignId, contactId) =>
+        set((s) => ({
+          campaigns: s.campaigns.map((c) =>
+            c.id !== campaignId
+              ? c
+              : {
+                  ...c,
+                  contactIds: c.contactIds.filter((x) => x !== contactId),
+                  updatedAt: now(),
+                },
+          ),
+        })),
+
+      addCampaignLead: (campaignId, leadId) =>
+        set((s) => ({
+          campaigns: s.campaigns.map((c) =>
+            c.id !== campaignId
+              ? c
+              : c.leadIds.includes(leadId)
+                ? c
+                : {
+                    ...c,
+                    leadIds: [...c.leadIds, leadId],
+                    updatedAt: now(),
+                  },
+          ),
+        })),
+
+      removeCampaignLead: (campaignId, leadId) =>
+        set((s) => ({
+          campaigns: s.campaigns.map((c) =>
+            c.id !== campaignId
+              ? c
+              : {
+                  ...c,
+                  leadIds: c.leadIds.filter((x) => x !== leadId),
+                  updatedAt: now(),
+                },
+          ),
+        })),
+
+      setSearchQuery: (searchQuery) => set({ searchQuery }),
+
+      resetDemoData: () => set(buildInitial()),
+    }),
+    {
+      name: 'biztomate-crm-data',
+      partialize: (s) => ({
+        companies: s.companies,
+        contacts: s.contacts,
+        deals: s.deals,
+        activities: s.activities,
+        leads: s.leads,
+        products: s.products,
+        quotes: s.quotes,
+        team: s.team,
+        emailTemplates: s.emailTemplates,
+        campaigns: s.campaigns,
+      }),
+      merge: (persisted, current) => {
+        const p = persisted as Partial<CrmState>;
+        return {
+          ...current,
+          ...p,
+          emailTemplates: p.emailTemplates ?? current.emailTemplates,
+          campaigns: p.campaigns ?? current.campaigns,
+        };
+      },
+    },
+  ),
+);
