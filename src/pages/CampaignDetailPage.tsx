@@ -347,6 +347,28 @@ export function CampaignDetailPage() {
           >
             Add contact
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={availableContacts.length === 0}
+            title="Add every contact that is not already in this campaign"
+            onClick={() => {
+              if (
+                availableContacts.length > 0 &&
+                !confirm(
+                  `Add all ${availableContacts.length} contact${availableContacts.length === 1 ? '' : 's'} to this campaign?`,
+                )
+              ) {
+                return;
+              }
+              for (const c of availableContacts) {
+                addCampaignContact(campaign.id, c.id);
+              }
+            }}
+          >
+            Add all contacts
+            {availableContacts.length > 0 ? ` (${availableContacts.length})` : ''}
+          </Button>
           <Select
             className="min-w-[12rem]"
             value={addLeadId}
@@ -369,6 +391,28 @@ export function CampaignDetailPage() {
             }}
           >
             Add lead
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={availableLeads.length === 0}
+            title="Add every lead that is not already in this campaign"
+            onClick={() => {
+              if (
+                availableLeads.length > 0 &&
+                !confirm(
+                  `Add all ${availableLeads.length} lead${availableLeads.length === 1 ? '' : 's'} to this campaign?`,
+                )
+              ) {
+                return;
+              }
+              for (const l of availableLeads) {
+                addCampaignLead(campaign.id, l.id);
+              }
+            }}
+          >
+            Add all leads
+            {availableLeads.length > 0 ? ` (${availableLeads.length})` : ''}
           </Button>
         </div>
 
