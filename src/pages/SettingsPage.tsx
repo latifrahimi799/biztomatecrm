@@ -4,7 +4,11 @@ import { Button } from '../components/ui/Button';
 import { Card, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
-import { isMicrosoftOAuthConfigured } from '../lib/microsoft/config';
+import {
+  getMicrosoftRedirectUri,
+  isFixedMicrosoftRedirectConfigured,
+  isMicrosoftOAuthConfigured,
+} from '../lib/microsoft/config';
 import { sendMailViaGraph } from '../lib/microsoft/sendMail';
 import { startMicrosoftLogin } from '../lib/microsoft/startLogin';
 import {
@@ -78,11 +82,18 @@ export function SettingsPage() {
         <CardTitle>Microsoft 365 — send email</CardTitle>
         <p className="mt-2 text-sm text-muted">
           Connect your work or personal Microsoft account so the app can request permission to send
-          email as you (Microsoft Graph). Redirect URI must be registered in Entra as:{' '}
-          <span className="font-mono text-xs text-gray-800">
-            {'{'}origin{'}'}/auth/microsoft/callback
+          email as you (Microsoft Graph). Register this exact SPA redirect URI in Entra:{' '}
+          <span className="break-all font-mono text-xs text-gray-800">
+            {typeof window !== 'undefined' ? getMicrosoftRedirectUri() : '…'}
           </span>
         </p>
+        {isFixedMicrosoftRedirectConfigured() && (
+          <p className="mt-2 text-xs text-muted">
+            Fixed redirect is enabled: starting login from a Vercel <em>preview</em> URL still sends
+            you to your production host to finish sign-in; the Microsoft token is stored for that
+            production origin.
+          </p>
+        )}
         {!isMicrosoftOAuthConfigured() ? (
           <p className="mt-3 text-sm text-amber-800">
             Add <span className="font-mono">VITE_MICROSOFT_CLIENT_ID</span> and{' '}

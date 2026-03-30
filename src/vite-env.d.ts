@@ -7,6 +7,11 @@ interface ImportMetaEnv {
   readonly VITE_MICROSOFT_CLIENT_ID?: string;
   /** Entra directory (tenant) ID, or `common` / `organizations` */
   readonly VITE_MICROSOFT_TENANT_ID?: string;
+  /**
+   * Full redirect URI, e.g. https://biztomatecrm.vercel.app/auth/microsoft/callback
+   * When set, preview deploys still use this URL for OAuth (register the same in Entra).
+   */
+  readonly VITE_MICROSOFT_REDIRECT_URI?: string;
   /** Set `true` to load Northwind-style demo data (overrides dev default). Set `false` to force empty CRM in dev. */
   readonly VITE_DEMO_DATA?: string;
 }
