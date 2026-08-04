@@ -1,20 +1,19 @@
 @import "tailwindcss";
 
-/* Biztomate Scanner brand tokens — constants/colors.ts */
+/* Biztomate brand — cooler blues + secondary violet, livelier surfaces */
 @theme {
-  --color-brand: #007aff;
-  --color-brand-hover: #0066dd;
-  --color-brand-muted: #e8f1ff;
-  --color-brand-secondary: #5856d6;
-  --color-surface: #f2f2f7;
-  --color-border: #c6c6c8;
-  --color-muted: #8e8e93;
-  --color-success: #34c759;
-  --color-warning: #ff9500;
-  --color-error: #ff3b30;
-  --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, sans-serif;
+  --color-brand: #0a84ff;
+  --color-brand-hover: #0070e0;
+  --color-brand-muted: #dff0ff;
+  --color-brand-secondary: #5e5ce6;
+  --color-brand-accent: #32d74b;
+  --color-surface: #eef4fc;
+  --color-border: #c5d4eb;
+  --color-muted: #5b6b86;
+  --color-success: #30d158;
+  --color-warning: #ff9f0a;
+  --color-error: #ff453a;
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
 }
 
 html {
@@ -25,10 +24,30 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--color-surface);
-  color: #000;
+  color: #0b1b33;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(10, 132, 255, 0.22), transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, rgba(94, 92, 230, 0.18), transparent 50%),
+    radial-gradient(800px 400px at 50% 100%, rgba(48, 209, 88, 0.1), transparent 50%),
+    linear-gradient(165deg, #f4f8ff 0%, #e8f1fc 45%, #eef6f2 100%);
+  background-attachment: fixed;
 }
 
 #root {
   min-height: 100vh;
+}
+
+@keyframes crm-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.crm-animate-in {
+  animation: crm-fade-up 0.35s ease-out both;
 }

@@ -11,7 +11,7 @@ export function Card({
   return (
     <div
       className={cn(
-        'rounded-xl border border-[var(--color-border)]/80 bg-white p-5 shadow-[0_1px_3px_rgba(0,122,255,0.06)]',
+        'rounded-2xl border border-brand/15 bg-white/90 p-5 shadow-[0_8px_30px_rgba(10,132,255,0.08)] backdrop-blur-sm transition-shadow hover:shadow-[0_12px_36px_rgba(10,132,255,0.12)]',
         className,
       )}
     >
@@ -27,5 +27,9 @@ export function CardTitle({
   children: ReactNode;
   className?: string;
 }) {
-  return <h2 className={cn('text-base font-semibold text-gray-900', className)}>{children}</h2>;
+  return (
+    <h2 className={cn('text-base font-bold tracking-tight text-gray-900', className)}>
+      {children}
+    </h2>
+  );
 }

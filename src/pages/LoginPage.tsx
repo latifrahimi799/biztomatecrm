@@ -18,8 +18,8 @@ export function LoginPage() {
 
   if (!ready) {
     return (
-      <div className="relative z-10 flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-muted/95 via-white/95 to-violet-50/60 p-4">
-        <p className="text-sm text-muted">Checking session…</p>
+      <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
+        <p className="text-sm font-medium text-brand">Checking session…</p>
       </div>
     );
   }
@@ -45,15 +45,15 @@ export function LoginPage() {
   }
 
   return (
-    <div className="relative z-10 flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-muted/95 via-white/95 to-violet-50/60 p-4">
-      <Card className="w-full max-w-md shadow-lg">
+    <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
+      <Card className="w-full max-w-md border-brand/20 shadow-[0_20px_60px_rgba(10,132,255,0.15)]">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-lg font-bold text-white">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand to-brand-secondary text-lg font-bold text-white shadow-lg shadow-brand/30">
             B
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">Biztomate CRM</h1>
-            <p className="text-sm text-muted">Sign in to your workspace</p>
+            <h1 className="text-xl font-bold tracking-tight text-gray-900">Biztomate CRM</h1>
+            <p className="text-sm font-medium text-brand">Sign in to your workspace</p>
           </div>
         </div>
         <form onSubmit={onSubmit} className="space-y-4">

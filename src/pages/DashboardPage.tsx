@@ -19,7 +19,7 @@ import { formatDate, formatMoney, relativeTime } from '../lib/format';
 
 const STAGES: DealStage[] = ['lead', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
 
-const PIPELINE_COLORS = ['#007AFF', '#5856D6', '#42A5F5', '#34C759', '#30D158', '#8E8E93'];
+const PIPELINE_COLORS = ['#0A84FF', '#5E5CE6', '#64D2FF', '#30D158', '#FF9F0A', '#FF453A'];
 
 export function DashboardPage() {
   const deals = useCrmStore((s) => s.deals);
@@ -60,29 +60,33 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-muted">Open deals</div>
-          <div className="mt-1 text-3xl font-semibold text-brand">{kpis.openCount}</div>
+        <Card className="border-l-4 border-l-brand bg-gradient-to-br from-brand/10 to-white">
+          <div className="text-xs font-semibold uppercase tracking-wide text-brand">Open deals</div>
+          <div className="mt-1 text-3xl font-bold text-brand">{kpis.openCount}</div>
           <div className="mt-2 text-sm text-muted">{formatMoney(kpis.pipeline)} pipeline</div>
         </Card>
-        <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-muted">
+        <Card className="border-l-4 border-l-brand-secondary bg-gradient-to-br from-brand-secondary/10 to-white">
+          <div className="text-xs font-semibold uppercase tracking-wide text-brand-secondary">
             Weighted forecast
           </div>
-          <div className="mt-1 flex items-center gap-2 text-3xl font-semibold text-gray-900">
+          <div className="mt-1 flex items-center gap-2 text-3xl font-bold text-gray-900">
             {formatMoney(kpis.weighted)}
             <TrendingUp className="h-5 w-5 text-success" />
           </div>
           <div className="mt-2 text-sm text-muted">Probability-adjusted open</div>
         </Card>
-        <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-muted">Won revenue</div>
-          <div className="mt-1 text-3xl font-semibold text-success">{formatMoney(kpis.won)}</div>
+        <Card className="border-l-4 border-l-success bg-gradient-to-br from-success/10 to-white">
+          <div className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+            Won revenue
+          </div>
+          <div className="mt-1 text-3xl font-bold text-success">{formatMoney(kpis.won)}</div>
           <div className="mt-2 text-sm text-muted">All won deals</div>
         </Card>
-        <Card>
-          <div className="text-xs font-medium uppercase tracking-wide text-muted">Active leads</div>
-          <div className="mt-1 text-3xl font-semibold text-brand-secondary">{kpis.leadCount}</div>
+        <Card className="border-l-4 border-l-warning bg-gradient-to-br from-warning/10 to-white">
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+            Active leads
+          </div>
+          <div className="mt-1 text-3xl font-bold text-amber-600">{kpis.leadCount}</div>
           <div className="mt-2 text-sm text-muted">Excl. converted & disqualified</div>
         </Card>
       </div>
@@ -94,14 +98,18 @@ export function DashboardPage() {
           <div className="mt-6 h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e5ea" />
-                <XAxis dataKey="stage" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v / 1000}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#c5d4eb" />
+                <XAxis dataKey="stage" tick={{ fontSize: 11, fill: '#5b6b86' }} />
+                <YAxis tick={{ fontSize: 11, fill: '#5b6b86' }} tickFormatter={(v) => `${v / 1000}k`} />
                 <Tooltip
                   formatter={(value) =>
                     [formatMoney(Number(value ?? 0)), 'Value'] as [string, string]
                   }
-                  contentStyle={{ borderRadius: 8 }}
+                  contentStyle={{
+                    borderRadius: 12,
+                    border: '1px solid rgba(10,132,255,0.2)',
+                    boxShadow: '0 8px 24px rgba(10,132,255,0.12)',
+                  }}
                 />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                   {chartData.map((_, i) => (
@@ -122,7 +130,7 @@ export function DashboardPage() {
               upcoming.map((a) => (
                 <li
                   key={a.id}
-                  className="rounded-lg border border-[var(--color-border)]/60 bg-surface/50 p-3"
+                  className="rounded-xl border border-brand/15 bg-gradient-to-r from-brand/5 to-brand-secondary/5 p-3"
                 >
                   <div className="font-medium text-gray-900">{a.subject}</div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">

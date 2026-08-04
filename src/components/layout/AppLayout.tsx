@@ -23,11 +23,11 @@ export function AppLayout() {
   const title = titles[base] ?? 'Biztomate CRM';
 
   return (
-    <div className="relative z-10 flex h-screen bg-surface/95">
+    <div className="relative z-10 flex h-screen bg-transparent">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar title={title} />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="crm-animate-in flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
       </div>

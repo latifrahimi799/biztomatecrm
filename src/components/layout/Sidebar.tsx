@@ -36,14 +36,14 @@ export function Sidebar() {
   const logout = useAuthStore((s) => s.logout);
 
   return (
-    <aside className="flex h-full w-60 flex-col border-r border-[var(--color-border)] bg-white">
-      <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-5 py-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand text-sm font-bold text-white">
+    <aside className="flex h-full w-60 flex-col border-r border-brand/15 bg-white/80 shadow-[4px_0_24px_rgba(10,132,255,0.06)] backdrop-blur-xl">
+      <div className="flex items-center gap-2.5 border-b border-brand/10 bg-gradient-to-r from-brand/10 via-white to-brand-secondary/10 px-5 py-4">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-secondary text-sm font-bold text-white shadow-md shadow-brand/30">
           B
         </div>
         <div>
-          <div className="text-sm font-semibold text-gray-900">Biztomate</div>
-          <div className="text-xs text-muted">CRM</div>
+          <div className="text-sm font-bold tracking-tight text-gray-900">Biztomate</div>
+          <div className="text-xs font-medium text-brand">CRM</div>
         </div>
       </div>
 
@@ -54,26 +54,35 @@ export function Sidebar() {
             to={to}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
                 isActive
-                  ? 'bg-brand-muted text-brand'
-                  : 'text-gray-600 hover:bg-surface hover:text-gray-900',
+                  ? 'bg-gradient-to-r from-brand to-brand-secondary text-white shadow-md shadow-brand/25'
+                  : 'text-gray-600 hover:bg-brand/10 hover:text-brand',
               )
             }
           >
-            <Icon className="h-4 w-4 shrink-0 opacity-80" />
-            {label}
+            {({ isActive }) => (
+              <>
+                <Icon
+                  className={cn(
+                    'h-4 w-4 shrink-0 transition-opacity',
+                    isActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100',
+                  )}
+                />
+                {label}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
 
-      <div className="border-t border-[var(--color-border)] p-3">
+      <div className="border-t border-brand/10 p-3">
         <button
           type="button"
           onClick={() => {
             void logout();
           }}
-          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-error"
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-error"
         >
           <LogOut className="h-4 w-4" />
           Sign out
