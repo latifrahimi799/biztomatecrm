@@ -41,7 +41,7 @@ export function CompanyDetailPage() {
         to="/companies"
         className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline"
       >
-        <ArrowLeft className="h-4 w-4" /> Companies
+        <ArrowLeft className="h-4 w-4" /> Accounts
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-4">

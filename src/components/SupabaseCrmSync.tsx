@@ -1,18 +1,17 @@
 import { useEffect, useRef } from 'react';
-import { fetchCrmPeople } from '../lib/supabase/crmData';
+import { fetchCrmWorkspace } from '../lib/supabase/crmData';
 import { isSupabaseConfigured } from '../lib/supabase/client';
 import { useAuthStore } from '../store/authStore';
 import { useCrmStore } from '../store/crmStore';
 
 /**
- * After Supabase Auth resolves a user, replace contacts/leads (and related owners/companies)
- * from Postgres so the UI reflects the database, not browser demo/localStorage.
+ * After Auth, load the full CRM workspace from Supabase (all modules).
  */
 export function SupabaseCrmSync() {
   const userEmail = useAuthStore((s) => s.userEmail);
   const userName = useAuthStore((s) => s.userName);
   const ready = useAuthStore((s) => s.ready);
-  const applyRemotePeople = useCrmStore((s) => s.applyRemotePeople);
+  const applyRemoteWorkspace = useCrmStore((s) => s.applyRemoteWorkspace);
   const setRemoteSyncState = useCrmStore((s) => s.setRemoteSyncState);
   const lastEmail = useRef<string | null>(null);
 
@@ -32,7 +31,7 @@ export function SupabaseCrmSync() {
     setRemoteSyncState({ status: 'loading', error: null });
 
     void (async () => {
-      const result = await fetchCrmPeople(userName ?? 'Workspace owner', userEmail);
+      const result = await fetchCrmWorkspace(userName ?? 'Workspace owner', userEmail);
       if (cancelled) return;
 
       if ('error' in result) {
@@ -40,14 +39,14 @@ export function SupabaseCrmSync() {
         return;
       }
 
-      applyRemotePeople(result);
+      applyRemoteWorkspace(result);
       setRemoteSyncState({ status: 'ready', error: null });
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [ready, userEmail, userName, applyRemotePeople, setRemoteSyncState]);
+  }, [ready, userEmail, userName, applyRemoteWorkspace, setRemoteSyncState]);
 
   return null;
 }

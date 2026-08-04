@@ -18,18 +18,18 @@ import { cn } from '../../lib/cn';
 import { useAuthStore } from '../../store/authStore';
 
 const items = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/contacts', label: 'Contacts', icon: Users },
-  { to: '/companies', label: 'Companies', icon: Building2 },
-  { to: '/deals', label: 'Deals & pipeline', icon: Target },
+  { to: '/dashboard', label: 'Home', icon: LayoutDashboard },
   { to: '/leads', label: 'Leads', icon: Radio },
-  { to: '/templates', label: 'Email templates', icon: LayoutTemplate },
+  { to: '/contacts', label: 'Contacts', icon: Users },
+  { to: '/companies', label: 'Accounts', icon: Building2 },
+  { to: '/deals', label: 'Deals', icon: Target },
   { to: '/campaigns', label: 'Campaigns', icon: Megaphone },
-  { to: '/activities', label: 'Activities', icon: ClipboardList },
   { to: '/products', label: 'Products', icon: Package },
   { to: '/quotes', label: 'Quotes', icon: FileText },
-  { to: '/reports', label: 'Reports', icon: BarChart3 },
-  { to: '/settings', label: 'Settings', icon: Settings },
+  { to: '/activities', label: 'Activities', icon: ClipboardList },
+  { to: '/templates', label: 'Email templates', icon: LayoutTemplate },
+  { to: '/reports', label: 'Analytics', icon: BarChart3 },
+  { to: '/settings', label: 'Setup', icon: Settings },
 ] as const;
 
 export function Sidebar() {

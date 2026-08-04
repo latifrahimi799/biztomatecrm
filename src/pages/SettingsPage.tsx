@@ -55,11 +55,11 @@ export function SettingsPage() {
           ).
         </p>
         <p className="mt-2 text-sm text-muted">
-          Supabase people sync:{' '}
-          {remoteSyncStatus === 'loading' && 'loading…'}
+          Supabase CRM sync:{' '}
+          {remoteSyncStatus === 'loading' && 'loading workspace…'}
           {remoteSyncStatus === 'ready' && (
             <span className="text-gray-800">
-              ready ({contactCount} contacts, {leadCount} leads)
+              ready ({contactCount} contacts, {leadCount} leads + deals, accounts, campaigns, …)
             </span>
           )}
           {remoteSyncStatus === 'error' && (
@@ -213,13 +213,13 @@ export function SettingsPage() {
       <Card>
         <CardTitle>Where your data lives</CardTitle>
         <p className="mt-2 text-sm text-muted">
-          <strong className="font-medium text-gray-800">Contacts and leads</strong> load from
-          Supabase Postgres when you sign in, and new/updated rows write back to those tables.
-          Other CRM records (deals, campaigns, templates, and so on) still live in{' '}
-          <strong className="font-medium text-gray-800">this browser</strong> (localStorage) until
-          they are wired similarly. Apply the latest SQL under
-          <span className="font-mono text-xs"> supabase/migrations</span> so authenticated users can
-          read and write contacts/leads (RLS policies).
+          After sign-in, the full CRM workspace is loaded from{' '}
+          <strong className="font-medium text-gray-800">Supabase Postgres</strong> (Leads, Contacts,
+          Accounts, Deals, Campaigns, Products, Quotes, Activities, Email templates). Creates and
+          edits write back to those tables. Apply SQL under
+          <span className="font-mono text-xs"> supabase/migrations</span> (especially
+          <span className="font-mono text-xs"> 20260804130000_full_crm_authenticated_access.sql</span>
+          ) so authenticated users have RLS access.
         </p>
       </Card>
 

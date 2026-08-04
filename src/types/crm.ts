@@ -191,12 +191,12 @@ export interface Campaign {
 }
 
 export const DEAL_STAGE_LABEL: Record<DealStage, string> = {
-  lead: 'Lead',
-  qualified: 'Qualified',
-  proposal: 'Proposal',
-  negotiation: 'Negotiation',
-  won: 'Won',
-  lost: 'Lost',
+  lead: 'Qualification',
+  qualified: 'Needs Analysis',
+  proposal: 'Proposal/Price Quote',
+  negotiation: 'Negotiation/Review',
+  won: 'Closed Won',
+  lost: 'Closed Lost',
 };
 
 export const ACTIVITY_TYPE_LABEL: Record<ActivityType, string> = {

@@ -18,11 +18,23 @@ import { blocksToEmailHtml } from '../lib/emailBlocks/renderEmailHtml';
 import { createTextBlock, createButtonBlock } from '../lib/emailBlocks/blockFactory';
 import { defaultTextStyle } from '../types/emailBlocks';
 import {
+  deleteActivityRemote,
+  deleteCampaignRemote,
+  deleteCompanyRemote,
   deleteContactRemote,
+  deleteDealRemote,
+  deleteTemplateRemote,
   isUuid,
-  type CrmPeoplePayload,
+  type CrmWorkspacePayload,
+  upsertActivityRemote,
+  upsertCampaignRemote,
+  upsertCompanyRemote,
   upsertContactRemote,
+  upsertDealRemote,
   upsertLeadRemote,
+  upsertProductRemote,
+  upsertQuoteRemote,
+  upsertTemplateRemote,
 } from '../lib/supabase/crmData';
 import { isSupabaseConfigured } from '../lib/supabase/client';
 
@@ -33,31 +45,82 @@ const OWNER = 'user-1';
 
 export type RemoteSyncStatus = 'idle' | 'loading' | 'ready' | 'error';
 
-function resolveOwnerId(preferred: string | undefined, state: { defaultOwnerId: string | null }): string {
+function resolveOwnerId(
+  preferred: string | undefined,
+  state: { defaultOwnerId: string | null },
+): string {
   if (preferred && isUuid(preferred)) return preferred;
   if (state.defaultOwnerId && isUuid(state.defaultOwnerId)) return state.defaultOwnerId;
   return preferred || OWNER;
 }
 
-function queueContactUpsert(contact: Contact, defaultOwnerId: string | null) {
-  if (!isSupabaseConfigured || !defaultOwnerId) return;
-  void upsertContactRemote(contact, defaultOwnerId).then((err) => {
-    if (err) console.error('[crm] contact upsert failed:', err);
-  });
+function remoteOwner(state: { defaultOwnerId: string | null }): string | null {
+  return state.defaultOwnerId && isUuid(state.defaultOwnerId) ? state.defaultOwnerId : null;
 }
 
+function logRemote(entity: string, err: string | null) {
+  if (err) console.error(`[crm] ${entity}:`, err);
+}
+
+function queueCompanyUpsert(company: Company, ownerId: string | null) {
+  if (!isSupabaseConfigured || !ownerId) return;
+  void upsertCompanyRemote(company, ownerId).then((e) => logRemote('company upsert', e));
+}
+function queueCompanyDelete(id: string) {
+  if (!isSupabaseConfigured) return;
+  void deleteCompanyRemote(id).then((e) => logRemote('company delete', e));
+}
+function queueContactUpsert(contact: Contact, ownerId: string | null) {
+  if (!isSupabaseConfigured || !ownerId) return;
+  void upsertContactRemote(contact, ownerId).then((e) => logRemote('contact upsert', e));
+}
 function queueContactDelete(id: string) {
   if (!isSupabaseConfigured) return;
-  void deleteContactRemote(id).then((err) => {
-    if (err) console.error('[crm] contact delete failed:', err);
-  });
+  void deleteContactRemote(id).then((e) => logRemote('contact delete', e));
 }
-
-function queueLeadUpsert(lead: Lead, defaultOwnerId: string | null) {
-  if (!isSupabaseConfigured || !defaultOwnerId) return;
-  void upsertLeadRemote(lead, defaultOwnerId).then((err) => {
-    if (err) console.error('[crm] lead upsert failed:', err);
-  });
+function queueLeadUpsert(lead: Lead, ownerId: string | null) {
+  if (!isSupabaseConfigured || !ownerId) return;
+  void upsertLeadRemote(lead, ownerId).then((e) => logRemote('lead upsert', e));
+}
+function queueDealUpsert(deal: Deal, ownerId: string | null) {
+  if (!isSupabaseConfigured || !ownerId) return;
+  void upsertDealRemote(deal, ownerId).then((e) => logRemote('deal upsert', e));
+}
+function queueDealDelete(id: string) {
+  if (!isSupabaseConfigured) return;
+  void deleteDealRemote(id).then((e) => logRemote('deal delete', e));
+}
+function queueActivityUpsert(activity: Activity, ownerId: string | null) {
+  if (!isSupabaseConfigured || !ownerId) return;
+  void upsertActivityRemote(activity, ownerId).then((e) => logRemote('activity upsert', e));
+}
+function queueActivityDelete(id: string) {
+  if (!isSupabaseConfigured) return;
+  void deleteActivityRemote(id).then((e) => logRemote('activity delete', e));
+}
+function queueProductUpsert(product: Product) {
+  if (!isSupabaseConfigured) return;
+  void upsertProductRemote(product).then((e) => logRemote('product upsert', e));
+}
+function queueQuoteUpsert(quote: Quote, ownerId: string | null) {
+  if (!isSupabaseConfigured || !ownerId) return;
+  void upsertQuoteRemote(quote, ownerId).then((e) => logRemote('quote upsert', e));
+}
+function queueTemplateUpsert(template: EmailTemplate, ownerId: string | null) {
+  if (!isSupabaseConfigured || !ownerId) return;
+  void upsertTemplateRemote(template, ownerId).then((e) => logRemote('template upsert', e));
+}
+function queueTemplateDelete(id: string) {
+  if (!isSupabaseConfigured) return;
+  void deleteTemplateRemote(id).then((e) => logRemote('template delete', e));
+}
+function queueCampaignUpsert(campaign: Campaign, ownerId: string | null) {
+  if (!isSupabaseConfigured || !ownerId) return;
+  void upsertCampaignRemote(campaign, ownerId).then((e) => logRemote('campaign upsert', e));
+}
+function queueCampaignDelete(id: string) {
+  if (!isSupabaseConfigured) return;
+  void deleteCampaignRemote(id).then((e) => logRemote('campaign delete', e));
 }
 
 /** Single owner row used when CRM starts empty (production). */
@@ -371,7 +434,7 @@ interface CrmState {
   remoteSyncError: string | null;
 
   setRemoteSyncState: (s: { status: RemoteSyncStatus; error: string | null }) => void;
-  applyRemotePeople: (payload: CrmPeoplePayload) => void;
+  applyRemoteWorkspace: (payload: CrmWorkspacePayload) => void;
 
   addCompany: (c: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateCompany: (id: Id, patch: Partial<Company>) => void;
@@ -551,40 +614,51 @@ export const useCrmStore = create<CrmState>()(
       setRemoteSyncState: ({ status, error }) =>
         set({ remoteSyncStatus: status, remoteSyncError: error }),
 
-      applyRemotePeople: (payload) =>
+      applyRemoteWorkspace: (payload) =>
         set({
+          companies: payload.companies,
           contacts: payload.contacts,
           leads: payload.leads,
-          companies: payload.companies,
+          deals: payload.deals,
+          activities: payload.activities,
+          products: payload.products,
+          quotes: payload.quotes,
+          emailTemplates: payload.emailTemplates,
+          campaigns: payload.campaigns,
           team: payload.team.length > 0 ? payload.team : get().team,
           defaultOwnerId: payload.defaultOwnerId,
         }),
 
-      addCompany: (c) =>
-        set((s) => ({
-          companies: [
-            ...s.companies,
-            {
-              ...c,
-              id: uid(),
-              createdAt: now(),
-              updatedAt: now(),
-            },
-          ],
-        })),
+      addCompany: (c) => {
+        const ownerId = resolveOwnerId(c.ownerId, get());
+        const row: Company = {
+          ...c,
+          ownerId,
+          id: uid(),
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        set((s) => ({ companies: [...s.companies, row] }));
+        queueCompanyUpsert(row, remoteOwner(get()));
+      },
 
-      updateCompany: (id, patch) =>
+      updateCompany: (id, patch) => {
         set((s) => ({
           companies: s.companies.map((x) =>
             x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
           ),
-        })),
+        }));
+        const row = get().companies.find((x) => x.id === id);
+        if (row) queueCompanyUpsert(row, remoteOwner(get()));
+      },
 
-      removeCompany: (id) =>
+      removeCompany: (id) => {
         set((s) => ({
           companies: s.companies.filter((x) => x.id !== id),
           contacts: s.contacts.map((c) => (c.companyId === id ? { ...c, companyId: undefined } : c)),
-        })),
+        }));
+        queueCompanyDelete(id);
+      },
 
       addContact: (c) => {
         const ownerId = resolveOwnerId(c.ownerId, get());
@@ -597,7 +671,7 @@ export const useCrmStore = create<CrmState>()(
           updatedAt: now(),
         };
         set((s) => ({ contacts: [...s.contacts, row] }));
-        queueContactUpsert(row, get().defaultOwnerId);
+        queueContactUpsert(row, remoteOwner(get()));
         return row;
       },
 
@@ -608,7 +682,7 @@ export const useCrmStore = create<CrmState>()(
           ),
         }));
         const row = get().contacts.find((x) => x.id === id);
-        if (row) queueContactUpsert(row, get().defaultOwnerId);
+        if (row) queueContactUpsert(row, remoteOwner(get()));
       },
 
       removeContact: (id) => {
@@ -626,50 +700,79 @@ export const useCrmStore = create<CrmState>()(
         queueContactDelete(id);
       },
 
-      addDeal: (d) =>
-        set((s) => ({
-          deals: [
-            ...s.deals,
-            { ...d, id: uid(), createdAt: now(), updatedAt: now() },
-          ],
-        })),
+      addDeal: (d) => {
+        const ownerId = resolveOwnerId(d.ownerId, get());
+        const row: Deal = {
+          ...d,
+          ownerId,
+          contactIds: d.contactIds ?? [],
+          id: uid(),
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        set((s) => ({ deals: [...s.deals, row] }));
+        queueDealUpsert(row, remoteOwner(get()));
+      },
 
-      updateDeal: (id, patch) =>
+      updateDeal: (id, patch) => {
         set((s) => ({
           deals: s.deals.map((x) =>
             x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
           ),
-        })),
+        }));
+        const row = get().deals.find((x) => x.id === id);
+        if (row) queueDealUpsert(row, remoteOwner(get()));
+      },
 
-      moveDealStage: (id, stage) =>
+      moveDealStage: (id, stage) => {
         set((s) => ({
           deals: s.deals.map((x) =>
             x.id === id ? { ...x, stage, updatedAt: now() } : x,
           ),
-        })),
+        }));
+        const row = get().deals.find((x) => x.id === id);
+        if (row) queueDealUpsert(row, remoteOwner(get()));
+      },
 
-      removeDeal: (id) =>
-        set((s) => ({ deals: s.deals.filter((x) => x.id !== id) })),
+      removeDeal: (id) => {
+        set((s) => ({ deals: s.deals.filter((x) => x.id !== id) }));
+        queueDealDelete(id);
+      },
 
-      addActivity: (a) =>
-        set((s) => ({
-          activities: [{ ...a, id: uid(), createdAt: now() }, ...s.activities],
-        })),
+      addActivity: (a) => {
+        const ownerId = resolveOwnerId(a.ownerId, get());
+        const row: Activity = {
+          ...a,
+          ownerId,
+          id: uid(),
+          createdAt: now(),
+        };
+        set((s) => ({ activities: [row, ...s.activities] }));
+        queueActivityUpsert(row, remoteOwner(get()));
+      },
 
-      updateActivity: (id, patch) =>
+      updateActivity: (id, patch) => {
         set((s) => ({
           activities: s.activities.map((x) => (x.id === id ? { ...x, ...patch } : x)),
-        })),
+        }));
+        const row = get().activities.find((x) => x.id === id);
+        if (row) queueActivityUpsert(row, remoteOwner(get()));
+      },
 
-      completeActivity: (id) =>
+      completeActivity: (id) => {
         set((s) => ({
           activities: s.activities.map((x) =>
             x.id === id ? { ...x, completedAt: now() } : x,
           ),
-        })),
+        }));
+        const row = get().activities.find((x) => x.id === id);
+        if (row) queueActivityUpsert(row, remoteOwner(get()));
+      },
 
-      removeActivity: (id) =>
-        set((s) => ({ activities: s.activities.filter((x) => x.id !== id) })),
+      removeActivity: (id) => {
+        set((s) => ({ activities: s.activities.filter((x) => x.id !== id) }));
+        queueActivityDelete(id);
+      },
 
       addLead: (patch) => {
         const ownerId = resolveOwnerId(patch.ownerId, get());
@@ -688,7 +791,7 @@ export const useCrmStore = create<CrmState>()(
           updatedAt: now(),
         };
         set((s) => ({ leads: [...s.leads, row] }));
-        queueLeadUpsert(row, get().defaultOwnerId);
+        queueLeadUpsert(row, remoteOwner(get()));
       },
 
       updateLead: (id, patch) => {
@@ -698,7 +801,7 @@ export const useCrmStore = create<CrmState>()(
           ),
         }));
         const row = get().leads.find((x) => x.id === id);
-        if (row) queueLeadUpsert(row, get().defaultOwnerId);
+        if (row) queueLeadUpsert(row, remoteOwner(get()));
       },
 
       convertLead: (leadId, overrides = {}) => {
@@ -722,62 +825,81 @@ export const useCrmStore = create<CrmState>()(
         get().updateLead(leadId, { status: 'converted' });
       },
 
-      addProduct: (p) =>
-        set((s) => ({
-          products: [...s.products, { ...p, id: uid(), createdAt: now() }],
-        })),
+      addProduct: (p) => {
+        const row: Product = { ...p, id: uid(), createdAt: now() };
+        set((s) => ({ products: [...s.products, row] }));
+        queueProductUpsert(row);
+      },
 
-      updateProduct: (id, patch) =>
+      updateProduct: (id, patch) => {
         set((s) => ({
           products: s.products.map((x) => (x.id === id ? { ...x, ...patch } : x)),
-        })),
+        }));
+        const row = get().products.find((x) => x.id === id);
+        if (row) queueProductUpsert(row);
+      },
 
       addQuote: (q) => {
+        const ownerId = resolveOwnerId(q.ownerId, get());
         const row: Quote = {
           ...q,
+          ownerId,
           id: uid(),
           lines: [],
           createdAt: now(),
           updatedAt: now(),
         };
         set((s) => ({ quotes: [...s.quotes, row] }));
+        queueQuoteUpsert(row, remoteOwner(get()));
         return row;
       },
 
-      updateQuote: (id, patch) =>
+      updateQuote: (id, patch) => {
         set((s) => ({
           quotes: s.quotes.map((x) =>
             x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
           ),
-        })),
+        }));
+        const row = get().quotes.find((x) => x.id === id);
+        if (row) queueQuoteUpsert(row, remoteOwner(get()));
+      },
 
       addEmailTemplate: (t) => {
+        const ownerId = resolveOwnerId(t.ownerId, get());
         const row: EmailTemplate = {
           ...t,
+          ownerId,
           id: uid(),
           createdAt: now(),
           updatedAt: now(),
         };
         set((s) => ({ emailTemplates: [...s.emailTemplates, row] }));
+        queueTemplateUpsert(row, remoteOwner(get()));
         return row;
       },
 
-      updateEmailTemplate: (id, patch) =>
+      updateEmailTemplate: (id, patch) => {
         set((s) => ({
           emailTemplates: s.emailTemplates.map((x) =>
             x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
           ),
-        })),
+        }));
+        const row = get().emailTemplates.find((x) => x.id === id);
+        if (row) queueTemplateUpsert(row, remoteOwner(get()));
+      },
 
-      removeEmailTemplate: (id) =>
+      removeEmailTemplate: (id) => {
         set((s) => ({
           emailTemplates: s.emailTemplates.filter((x) => x.id !== id),
           campaigns: s.campaigns.map((c) =>
             c.templateId === id ? { ...c, templateId: undefined, updatedAt: now() } : c,
           ),
-        })),
+        }));
+        queueTemplateDelete(id);
+      },
 
       addCampaign: (c) => {
+        const ownerId = resolveOwnerId(c.ownerId, get());
         const row: Campaign = {
           name: c.name,
           type: c.type,
@@ -792,26 +914,32 @@ export const useCrmStore = create<CrmState>()(
           templateId: c.templateId,
           contactIds: c.contactIds ?? [],
           leadIds: c.leadIds ?? [],
-          ownerId: c.ownerId,
+          ownerId,
           id: uid(),
           createdAt: now(),
           updatedAt: now(),
         };
         set((s) => ({ campaigns: [...s.campaigns, row] }));
+        queueCampaignUpsert(row, remoteOwner(get()));
         return row;
       },
 
-      updateCampaign: (id, patch) =>
+      updateCampaign: (id, patch) => {
         set((s) => ({
           campaigns: s.campaigns.map((x) =>
             x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
           ),
-        })),
+        }));
+        const row = get().campaigns.find((x) => x.id === id);
+        if (row) queueCampaignUpsert(row, remoteOwner(get()));
+      },
 
-      removeCampaign: (id) =>
-        set((s) => ({ campaigns: s.campaigns.filter((x) => x.id !== id) })),
+      removeCampaign: (id) => {
+        set((s) => ({ campaigns: s.campaigns.filter((x) => x.id !== id) }));
+        queueCampaignDelete(id);
+      },
 
-      addCampaignContact: (campaignId, contactId) =>
+      addCampaignContact: (campaignId, contactId) => {
         set((s) => ({
           campaigns: s.campaigns.map((c) =>
             c.id !== campaignId
@@ -824,9 +952,12 @@ export const useCrmStore = create<CrmState>()(
                     updatedAt: now(),
                   },
           ),
-        })),
+        }));
+        const row = get().campaigns.find((x) => x.id === campaignId);
+        if (row) queueCampaignUpsert(row, remoteOwner(get()));
+      },
 
-      removeCampaignContact: (campaignId, contactId) =>
+      removeCampaignContact: (campaignId, contactId) => {
         set((s) => ({
           campaigns: s.campaigns.map((c) =>
             c.id !== campaignId
@@ -837,9 +968,12 @@ export const useCrmStore = create<CrmState>()(
                   updatedAt: now(),
                 },
           ),
-        })),
+        }));
+        const row = get().campaigns.find((x) => x.id === campaignId);
+        if (row) queueCampaignUpsert(row, remoteOwner(get()));
+      },
 
-      addCampaignLead: (campaignId, leadId) =>
+      addCampaignLead: (campaignId, leadId) => {
         set((s) => ({
           campaigns: s.campaigns.map((c) =>
             c.id !== campaignId
@@ -852,9 +986,12 @@ export const useCrmStore = create<CrmState>()(
                     updatedAt: now(),
                   },
           ),
-        })),
+        }));
+        const row = get().campaigns.find((x) => x.id === campaignId);
+        if (row) queueCampaignUpsert(row, remoteOwner(get()));
+      },
 
-      removeCampaignLead: (campaignId, leadId) =>
+      removeCampaignLead: (campaignId, leadId) => {
         set((s) => ({
           campaigns: s.campaigns.map((c) =>
             c.id !== campaignId
@@ -865,7 +1002,10 @@ export const useCrmStore = create<CrmState>()(
                   updatedAt: now(),
                 },
           ),
-        })),
+        }));
+        const row = get().campaigns.find((x) => x.id === campaignId);
+        if (row) queueCampaignUpsert(row, remoteOwner(get()));
+      },
 
       setSearchQuery: (searchQuery) => set({ searchQuery }),
 

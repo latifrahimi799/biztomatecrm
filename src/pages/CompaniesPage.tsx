@@ -11,6 +11,7 @@ import { useFilteredEntities } from '../hooks/useFilteredEntities';
 export function CompaniesPage() {
   const { companies, hasFilter } = useFilteredEntities();
   const addCompany = useCrmStore((s) => s.addCompany);
+  const defaultOwnerId = useCrmStore((s) => s.defaultOwnerId);
   const contacts = useCrmStore((s) => s.contacts);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
@@ -28,7 +29,7 @@ export function CompaniesPage() {
       industry: form.industry.trim() || undefined,
       website: form.website.trim() || undefined,
       phone: form.phone.trim() || undefined,
-      ownerId: 'user-1',
+      ownerId: defaultOwnerId ?? 'user-1',
     });
     setOpen(false);
     setForm({ name: '', industry: '', website: '', phone: '' });

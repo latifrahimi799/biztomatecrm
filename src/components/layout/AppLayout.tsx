@@ -3,18 +3,18 @@ import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 
 const titles: Record<string, string> = {
-  '/dashboard': 'Dashboard',
+  '/dashboard': 'Home',
   '/contacts': 'Contacts',
-  '/companies': 'Companies',
-  '/deals': 'Deals & pipeline',
+  '/companies': 'Accounts',
+  '/deals': 'Deals',
   '/leads': 'Leads',
-  '/templates': 'Email templates',
+  '/templates': 'Email Templates',
   '/campaigns': 'Campaigns',
   '/activities': 'Activities',
   '/products': 'Products',
   '/quotes': 'Quotes',
-  '/reports': 'Reports & analytics',
-  '/settings': 'Settings',
+  '/reports': 'Analytics',
+  '/settings': 'Setup',
 };
 
 export function AppLayout() {
