@@ -51,3 +51,19 @@ body {
 .crm-animate-in {
   animation: crm-fade-up 0.35s ease-out both;
 }
+
+/* Dim + freeze the app shell while a portal modal is open */
+html.crm-modal-open #root {
+  pointer-events: none;
+  user-select: none;
+}
+
+html.crm-modal-open #root > * {
+  filter: brightness(0.45);
+}
+
+.crm-modal-root,
+.crm-modal-root * {
+  pointer-events: auto;
+}
+
