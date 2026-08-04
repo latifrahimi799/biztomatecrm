@@ -29,10 +29,11 @@ const minimalTeam: TeamMember[] = [
 ];
 
 /**
- * Demo Northwind-style dataset (development only unless VITE_DEMO_DATA=true).
- * Production builds start with an empty CRM so data is not wiped-looking on each device.
+ * Demo Northwind-style dataset — local dev only.
+ * Production never seeds demo records (ignore VITE_DEMO_DATA=true on deployed builds).
  */
 function useDemoSeed(): boolean {
+  if (import.meta.env.PROD) return false;
   const flag = import.meta.env.VITE_DEMO_DATA;
   if (flag === 'true') return true;
   if (flag === 'false') return false;

@@ -40,6 +40,13 @@ export const useAuthStore = create<AuthState>((set) => ({
   ready: false,
 
   initAuth: () => {
+    // Drop the old client-only demo session so production can't stay "logged in" without Supabase.
+    try {
+      localStorage.removeItem('biztomate-crm-auth');
+    } catch {
+      /* ignore */
+    }
+
     if (!isSupabaseConfigured || !supabase) {
       set({ ready: true, userEmail: null, userName: null });
       return;
