@@ -20,6 +20,69 @@ function isSuperRole(role: string | null | undefined): boolean {
   return role === 'super_admin';
 }
 
+async function sleep(ms: number) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * profiles.id → auth.users(id). Only update/insert a profile after the auth row exists.
+ * Prefer update; the DB trigger usually creates the row on signup.
+ */
+async function linkProfileToTeam(
+  authUserId: string,
+  displayName: string,
+  teamMemberId: string,
+): Promise<string | null> {
+  if (!supabase) return 'Supabase is not configured.';
+
+  // Wait briefly for handle_new_user trigger
+  for (let i = 0; i < 8; i++) {
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', authUserId)
+      .maybeSingle();
+
+    if (existing?.id) {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          display_name: displayName,
+          team_member_id: teamMemberId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', authUserId);
+      return error?.message ?? null;
+    }
+    await sleep(150);
+  }
+
+  // Profile missing (trigger not installed) — insert only if we know auth user was created by signUp
+  const { error: insertErr } = await supabase.from('profiles').insert({
+    id: authUserId,
+    display_name: displayName,
+    team_member_id: teamMemberId,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (!insertErr) return null;
+
+  // FK violation or RLS: seat is still created; user can link on first login
+  if (
+    insertErr.code === '23503' ||
+    insertErr.message.includes('profiles_id_fkey') ||
+    insertErr.message.includes('foreign key')
+  ) {
+    return (
+      'Auth user or email confirmation may be pending. Team seat was created; ' +
+      'profile will link automatically when they sign in. ' +
+      'If the email already exists in Authentication → Users, reset their password there instead of re-adding.'
+    );
+  }
+
+  return insertErr.message;
+}
+
 /**
  * Ensure the signed-in auth user has a team_members row + profiles.team_member_id.
  * First workspace user becomes super_admin; later invites keep the role assigned by admin.
@@ -45,23 +108,42 @@ export async function ensureWorkspaceIdentity(
     userEmail.split('@')[0] ||
     'User';
 
-  // Ensure profile row exists
-  await supabase.from('profiles').upsert(
-    {
-      id: user.id,
-      display_name: name,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' },
-  );
-
-  const { data: profile, error: profileErr } = await supabase
+  // Profile is created by auth trigger. Load or create safely (only own auth user id).
+  let { data: profile, error: profileErr } = await supabase
     .from('profiles')
     .select('id, team_member_id, display_name')
     .eq('id', user.id)
     .maybeSingle();
 
   if (profileErr) return { error: profileErr.message };
+
+  if (!profile) {
+    const { error: upsertErr } = await supabase.from('profiles').insert({
+      id: user.id,
+      display_name: name,
+      updated_at: new Date().toISOString(),
+    });
+    if (upsertErr && upsertErr.code !== '23505') {
+      // 23505 unique violation = race with trigger — fine
+      if (
+        upsertErr.code === '23503' ||
+        upsertErr.message.includes('profiles_id_fkey')
+      ) {
+        return {
+          error:
+            'Could not create profile: auth user missing. Sign out and sign in again, or check Supabase Auth.',
+        };
+      }
+      return { error: upsertErr.message };
+    }
+    const re = await supabase
+      .from('profiles')
+      .select('id, team_member_id, display_name')
+      .eq('id', user.id)
+      .maybeSingle();
+    profile = re.data;
+    if (re.error) return { error: re.error.message };
+  }
 
   let teamMemberId = profile?.team_member_id as string | null;
 
@@ -94,7 +176,6 @@ export async function ensureWorkspaceIdentity(
   if (byEmail) {
     teamMemberId = byEmail.id;
   } else {
-    // Create seat — first seat becomes super_admin if none exists
     const { count } = await supabase
       .from('team_members')
       .select('id', { count: 'exact', head: true });
@@ -213,56 +294,95 @@ export async function createTeamUser(input: {
     },
   });
 
-  if (signErr) return signErr.message;
-  const newUserId = signed.user?.id;
-  if (!newUserId) {
-    return 'User may already exist or email confirmation is required. Check Auth users, then assign a role.';
+  if (signErr) {
+    const msg = signErr.message.toLowerCase();
+    if (msg.includes('already') || msg.includes('registered') || msg.includes('exists')) {
+      // Still ensure CRM seat exists for a pre-existing Auth user
+      const seatOnly = await ensureTeamSeat(email, name, input.role);
+      if (seatOnly) return seatOnly;
+      return (
+        'That email is already in Supabase Auth. CRM seat/role was saved — they should sign in with their existing password (reset it in Auth if needed).'
+      );
+    }
+    return signErr.message;
   }
 
-  // Create / update team_member seat with chosen role
+  const newUser = signed.user;
+  // Supabase often returns a user object with empty identities when the email already exists
+  const fakeExisting =
+    !newUser?.id ||
+    (Array.isArray(newUser.identities) && newUser.identities.length === 0);
+
+  if (fakeExisting) {
+    const seatOnly = await ensureTeamSeat(email, name, input.role);
+    if (seatOnly) return seatOnly;
+    return (
+      'That email is already registered in Authentication. CRM seat/role was saved. ' +
+      'Do not re-create the login — share existing credentials or set a new password in Supabase Auth.'
+    );
+  }
+
+  const newUserId = newUser.id;
+
+  const seat = await ensureTeamSeatReturnId(email, name, input.role);
+  if ('error' in seat) return seat.error;
+
+  const linkErr = await linkProfileToTeam(newUserId, name, seat.id);
+  if (linkErr) {
+    console.warn('[createTeamUser] profile link:', linkErr);
+  }
+
+  return null;
+}
+
+/** null = ok, string = error message */
+async function ensureTeamSeat(
+  email: string,
+  name: string,
+  role: AppRole,
+): Promise<string | null> {
+  const r = await ensureTeamSeatReturnId(email, name, role);
+  return 'error' in r ? r.error : null;
+}
+
+async function ensureTeamSeatReturnId(
+  email: string,
+  name: string,
+  role: AppRole,
+): Promise<{ id: string } | { error: string }> {
+  if (!supabase) return { error: 'Supabase is not configured.' };
+
   const { data: existingSeat } = await supabase
     .from('team_members')
     .select('id')
     .ilike('email', email)
     .maybeSingle();
 
-  let teamMemberId: string;
   if (existingSeat?.id) {
-    teamMemberId = existingSeat.id as string;
+    const teamMemberId = existingSeat.id as string;
     const { error } = await supabase
       .from('team_members')
       .update({
         name,
-        role: input.role,
+        role,
         updated_at: new Date().toISOString(),
       })
       .eq('id', teamMemberId);
-    if (error) return error.message;
-  } else {
-    const { data: created, error } = await supabase
-      .from('team_members')
-      .insert({
-        name,
-        email,
-        role: input.role,
-      })
-      .select('id')
-      .single();
-    if (error || !created) return error?.message ?? 'Could not create team seat.';
-    teamMemberId = created.id as string;
+    if (error) return { error: error.message };
+    return { id: teamMemberId };
   }
 
-  // Link profile (trigger may have created it)
-  const { error: linkErr } = await supabase.from('profiles').upsert(
-    {
-      id: newUserId,
-      display_name: name,
-      team_member_id: teamMemberId,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'id' },
-  );
-  if (linkErr) return linkErr.message;
-
-  return null;
+  const { data: created, error } = await supabase
+    .from('team_members')
+    .insert({
+      name,
+      email,
+      role,
+    })
+    .select('id')
+    .single();
+  if (error || !created) {
+    return { error: error?.message ?? 'Could not create team seat.' };
+  }
+  return { id: created.id as string };
 }
