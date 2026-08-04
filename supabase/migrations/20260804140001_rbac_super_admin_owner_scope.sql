@@ -1,19 +1,7 @@
+-- STEP 2 of 2 — run AFTER 20260804140000_add_super_admin_enum.sql has completed successfully.
 -- RBAC: Super Admin sees all; others only rows where owner_id = their team_members.id.
 
--- 1) Extend roles
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_enum e
-    JOIN pg_type t ON e.enumtypid = t.oid
-    JOIN pg_namespace n ON n.oid = t.typnamespace
-    WHERE n.nspname = 'public' AND t.typname = 'team_role' AND e.enumlabel = 'super_admin'
-  ) THEN
-    ALTER TYPE public.team_role ADD VALUE 'super_admin';
-  END IF;
-END $$;
-
--- 2) Security helpers first (used by policies below)
+-- Security helpers
 CREATE OR REPLACE FUNCTION public.current_team_member_id()
 RETURNS UUID
 LANGUAGE sql
@@ -43,7 +31,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.current_team_member_id() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.is_super_admin() TO authenticated;
 
--- 3) Profiles RLS
+-- Profiles RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "profiles_select_own_or_super" ON public.profiles;
@@ -64,7 +52,7 @@ CREATE POLICY "profiles_insert_own"
 
 GRANT SELECT, INSERT, UPDATE ON public.profiles TO authenticated;
 
--- 4) Owner-scoped CRM tables
+-- Owner-scoped CRM tables
 DO $$
 DECLARE
   t text;
@@ -197,8 +185,9 @@ CREATE POLICY "team_members_delete" ON public.team_members
   USING (public.is_super_admin());
 
 -- Bootstrap: earliest team member becomes super_admin if none exists
+-- (Safe only after enum value from step 1 has been committed.)
 UPDATE public.team_members
-SET role = 'super_admin'::public.team_role
+SET role = 'super_admin'
 WHERE id = (
   SELECT id FROM public.team_members ORDER BY created_at ASC NULLS LAST LIMIT 1
 )
