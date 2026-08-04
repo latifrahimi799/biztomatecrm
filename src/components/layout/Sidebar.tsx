@@ -70,7 +70,9 @@ export function Sidebar() {
       <div className="border-t border-[var(--color-border)] p-3">
         <button
           type="button"
-          onClick={logout}
+          onClick={() => {
+            void logout();
+          }}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-error"
         >
           <LogOut className="h-4 w-4" />

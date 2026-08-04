@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { BackgroundWatermark } from './components/layout/BackgroundWatermark';
 import { AppLayout } from './components/layout/AppLayout';
@@ -23,7 +24,15 @@ import { CampaignDetailPage } from './pages/CampaignDetailPage';
 import { MicrosoftOAuthCallbackPage } from './pages/MicrosoftOAuthCallbackPage';
 
 function Protected({ children }: { children: ReactNode }) {
+  const ready = useAuthStore((s) => s.ready);
   const email = useAuthStore((s) => s.userEmail);
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted">
+        Loading…
+      </div>
+    );
+  }
   if (!email) {
     return <Navigate to="/login" replace />;
   }
@@ -31,6 +40,12 @@ function Protected({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
+  const initAuth = useAuthStore((s) => s.initAuth);
+
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
+
   return (
     <>
       <BackgroundWatermark />

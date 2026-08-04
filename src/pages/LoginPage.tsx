@@ -3,23 +3,45 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card } from '../components/ui/Card';
+import { isSupabaseConfigured } from '../lib/supabase/client';
 import { useAuthStore } from '../store/authStore';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const ready = useAuthStore((s) => s.ready);
   const sessionEmail = useAuthStore((s) => s.userEmail);
   const login = useAuthStore((s) => s.login);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  if (!ready) {
+    return (
+      <div className="relative z-10 flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-muted/95 via-white/95 to-violet-50/60 p-4">
+        <p className="text-sm text-muted">Checking session…</p>
+      </div>
+    );
+  }
+
   if (sessionEmail) {
     return <Navigate to="/dashboard" replace />;
   }
-  const [email, setEmail] = useState('alex@biztomate.com');
-  const [name, setName] = useState('Alex Morgan');
-  const [password, setPassword] = useState('');
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    login(email.trim() || 'user@biztomate.com', name.trim() || 'Team member');
-    navigate('/dashboard', { replace: true });
+    setError(null);
+    setSubmitting(true);
+    try {
+      const message = await login(email, password);
+      if (message) {
+        setError(message);
+        return;
+      }
+      navigate('/dashboard', { replace: true });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -36,16 +58,14 @@ export function LoginPage() {
         </div>
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Name</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Work email</label>
+            <label className="mb-1 block text-xs font-medium text-gray-700">Email</label>
             <Input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
+              autoComplete="username"
+              required
+              disabled={submitting}
             />
           </div>
           <div>
@@ -54,16 +74,26 @@ export function LoginPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Demo — any value"
               autoComplete="current-password"
+              required
+              disabled={submitting}
             />
           </div>
-          <Button type="submit" className="w-full">
-            Continue
+          {error ? (
+            <p className="text-sm text-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {!isSupabaseConfigured ? (
+            <p className="text-sm text-error" role="alert">
+              Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.
+            </p>
+          ) : null}
+          <Button type="submit" className="w-full" disabled={submitting || !isSupabaseConfigured}>
+            {submitting ? 'Signing in…' : 'Sign in'}
           </Button>
           <p className="text-center text-xs text-muted">
-            Demo build: data stays in this browser (local storage). Connect a backend when you are
-            ready.
+            Use the email and password created in Supabase Auth.
           </p>
         </form>
       </Card>
