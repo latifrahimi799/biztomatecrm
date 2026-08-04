@@ -5,27 +5,29 @@ import { useAuthStore } from '../store/authStore';
 import { useCrmStore } from '../store/crmStore';
 
 /**
- * After Auth, load the full CRM workspace from Supabase (all modules).
+ * After Auth + workspace identity, load CRM rows (RLS scopes by owner / super_admin).
  */
 export function SupabaseCrmSync() {
   const userEmail = useAuthStore((s) => s.userEmail);
   const userName = useAuthStore((s) => s.userName);
+  const teamMemberId = useAuthStore((s) => s.teamMemberId);
   const ready = useAuthStore((s) => s.ready);
   const applyRemoteWorkspace = useCrmStore((s) => s.applyRemoteWorkspace);
   const setRemoteSyncState = useCrmStore((s) => s.setRemoteSyncState);
-  const lastEmail = useRef<string | null>(null);
+  const lastKey = useRef<string | null>(null);
 
   useEffect(() => {
     if (!ready) return;
 
-    if (!isSupabaseConfigured || !userEmail) {
-      lastEmail.current = null;
+    if (!isSupabaseConfigured || !userEmail || !teamMemberId) {
+      lastKey.current = null;
       setRemoteSyncState({ status: 'idle', error: null });
       return;
     }
 
-    if (lastEmail.current === userEmail) return;
-    lastEmail.current = userEmail;
+    const key = `${userEmail}:${teamMemberId}`;
+    if (lastKey.current === key) return;
+    lastKey.current = key;
 
     let cancelled = false;
     setRemoteSyncState({ status: 'loading', error: null });
@@ -46,7 +48,14 @@ export function SupabaseCrmSync() {
     return () => {
       cancelled = true;
     };
-  }, [ready, userEmail, userName, applyRemoteWorkspace, setRemoteSyncState]);
+  }, [
+    ready,
+    userEmail,
+    userName,
+    teamMemberId,
+    applyRemoteWorkspace,
+    setRemoteSyncState,
+  ]);
 
   return null;
 }

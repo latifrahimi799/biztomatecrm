@@ -20,6 +20,7 @@ import type {
 } from '../../types/crm';
 import type { EmailBlock } from '../../types/emailBlocks';
 import { isSupabaseConfigured, supabase } from './client';
+import { ensureWorkspaceIdentity } from './users';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -513,6 +514,9 @@ export async function ensureDefaultOwner(
     return { error: 'Supabase is not configured.' };
   }
 
+  const identity = await ensureWorkspaceIdentity(displayName, email);
+  if ('error' in identity) return identity;
+
   const { data: existing, error: listErr } = await supabase
     .from('team_members')
     .select('id, name, email, role')
@@ -521,24 +525,7 @@ export async function ensureDefaultOwner(
   if (listErr) return { error: listErr.message };
 
   const team = ((existing as TeamRow[] | null) ?? []).map(mapTeam);
-  if (team.length > 0) return { ownerId: team[0].id, team };
-
-  const { data: created, error: insertErr } = await supabase
-    .from('team_members')
-    .insert({
-      name: displayName || 'Workspace owner',
-      email: email || 'owner@workspace.local',
-      role: 'admin',
-    })
-    .select('id, name, email, role')
-    .single();
-
-  if (insertErr || !created) {
-    return { error: insertErr?.message ?? 'Could not create team member.' };
-  }
-
-  const member = mapTeam(created as TeamRow);
-  return { ownerId: member.id, team: [member] };
+  return { ownerId: identity.teamMemberId, team };
 }
 
 export async function fetchCrmWorkspace(

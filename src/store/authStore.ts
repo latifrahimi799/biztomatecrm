@@ -1,6 +1,7 @@
 import type { User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import { isSupabaseConfigured, supabase } from '../lib/supabase/client';
+import { ensureWorkspaceIdentity, type AppRole } from '../lib/supabase/users';
 
 function displayNameFromUser(user: User): string {
   const meta = user.user_metadata ?? {};
@@ -12,35 +13,82 @@ function displayNameFromUser(user: User): string {
   return user.email?.split('@')[0] || 'User';
 }
 
-function applyUser(user: User | null) {
-  if (!user) {
-    return { userEmail: null as string | null, userName: null as string | null };
-  }
-  return {
-    userEmail: user.email ?? null,
-    userName: displayNameFromUser(user),
-  };
-}
-
 interface AuthState {
   userEmail: string | null;
   userName: string | null;
+  userId: string | null;
+  teamMemberId: string | null;
+  role: AppRole | null;
+  isSuperAdmin: boolean;
   /** False until the first Supabase session check finishes. */
   ready: boolean;
   initAuth: () => void;
   login: (email: string, password: string) => Promise<string | null>;
   logout: () => Promise<void>;
+  refreshIdentity: () => Promise<void>;
 }
 
 let authListenerBound = false;
 
+async function loadIdentity(
+  set: (
+    partial:
+      | Partial<AuthState>
+      | ((state: AuthState) => Partial<AuthState>),
+  ) => void,
+  user: User | null,
+) {
+  if (!user) {
+    set({
+      userEmail: null,
+      userName: null,
+      userId: null,
+      teamMemberId: null,
+      role: null,
+      isSuperAdmin: false,
+      ready: true,
+    });
+    return;
+  }
+
+  const email = user.email ?? '';
+  const name = displayNameFromUser(user);
+  const identity = await ensureWorkspaceIdentity(name, email);
+  if ('error' in identity) {
+    console.error('[auth] identity:', identity.error);
+    set({
+      userEmail: email,
+      userName: name,
+      userId: user.id,
+      teamMemberId: null,
+      role: null,
+      isSuperAdmin: false,
+      ready: true,
+    });
+    return;
+  }
+
+  set({
+    userEmail: identity.email,
+    userName: identity.name,
+    userId: identity.userId,
+    teamMemberId: identity.teamMemberId,
+    role: identity.role,
+    isSuperAdmin: identity.isSuperAdmin,
+    ready: true,
+  });
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   userEmail: null,
   userName: null,
+  userId: null,
+  teamMemberId: null,
+  role: null,
+  isSuperAdmin: false,
   ready: false,
 
   initAuth: () => {
-    // Drop the old client-only demo session so production can't stay "logged in" without Supabase.
     try {
       localStorage.removeItem('biztomate-crm-auth');
     } catch {
@@ -48,20 +96,34 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
 
     if (!isSupabaseConfigured || !supabase) {
-      set({ ready: true, userEmail: null, userName: null });
+      set({
+        ready: true,
+        userEmail: null,
+        userName: null,
+        userId: null,
+        teamMemberId: null,
+        role: null,
+        isSuperAdmin: false,
+      });
       return;
     }
 
     void supabase.auth.getSession().then(({ data }) => {
-      set({ ...applyUser(data.session?.user ?? null), ready: true });
+      void loadIdentity(set, data.session?.user ?? null);
     });
 
     if (!authListenerBound) {
       authListenerBound = true;
       supabase.auth.onAuthStateChange((_event, session) => {
-        set({ ...applyUser(session?.user ?? null), ready: true });
+        void loadIdentity(set, session?.user ?? null);
       });
     }
+  },
+
+  refreshIdentity: async () => {
+    if (!supabase) return;
+    const { data } = await supabase.auth.getUser();
+    await loadIdentity(set, data.user ?? null);
   },
 
   login: async (email, password) => {
@@ -77,7 +139,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       password,
     });
     if (error) return error.message;
-    set(applyUser(data.user));
+    await loadIdentity(set, data.user);
     return null;
   },
 
@@ -85,6 +147,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     if (supabase) {
       await supabase.auth.signOut();
     }
-    set({ userEmail: null, userName: null });
+    set({
+      userEmail: null,
+      userName: null,
+      userId: null,
+      teamMemberId: null,
+      role: null,
+      isSuperAdmin: false,
+    });
   },
 }));

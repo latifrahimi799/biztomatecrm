@@ -127,11 +127,13 @@ export interface Quote {
   updatedAt: string;
 }
 
+export type TeamRole = 'super_admin' | 'admin' | 'sales' | 'marketing' | 'support';
+
 export interface TeamMember {
   id: Id;
   name: string;
   email: string;
-  role: 'admin' | 'sales' | 'marketing' | 'support';
+  role: TeamRole;
 }
 
 /** Zoho-style campaign type */

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Card, CardTitle } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
 import {
   getMicrosoftRedirectUri,
@@ -18,14 +17,17 @@ import {
 } from '../store/crmStore';
 import { useAuthStore } from '../store/authStore';
 import { useMicrosoftAuthStore } from '../store/microsoftAuthStore';
+import { TeamAdminSection } from '../components/TeamAdminSection';
+import { Badge } from '../components/ui/Badge';
 
 export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const team = useCrmStore((s) => s.team);
   const resetDemoData = useCrmStore((s) => s.resetDemoData);
   const importCrmBackup = useCrmStore((s) => s.importCrmBackup);
   const userName = useAuthStore((s) => s.userName);
   const userEmail = useAuthStore((s) => s.userEmail);
+  const role = useAuthStore((s) => s.role);
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
   const remoteSyncStatus = useCrmStore((s) => s.remoteSyncStatus);
   const remoteSyncError = useCrmStore((s) => s.remoteSyncError);
   const contactCount = useCrmStore((s) => s.contacts.length);
@@ -52,7 +54,12 @@ export function SettingsPage() {
         <CardTitle>Workspace profile</CardTitle>
         <p className="mt-2 text-sm text-muted">
           Signed in as <span className="font-medium text-gray-900">{userName}</span> ({userEmail}
-          ).
+          ){' '}
+          {role ? (
+            <Badge tone={isSuperAdmin ? 'default' : 'secondary'} className="ml-1 align-middle">
+              {isSuperAdmin ? 'Super Admin' : role}
+            </Badge>
+          ) : null}
         </p>
         <p className="mt-2 text-sm text-muted">
           Supabase CRM sync:{' '}
@@ -77,23 +84,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card>
-        <CardTitle>Team & roles</CardTitle>
-        <p className="mt-1 text-sm text-muted">
-          Prospect view of seat management. Hook to your directory or SSO later.
-        </p>
-        <ul className="mt-4 divide-y divide-[var(--color-border)]/60">
-          {team.map((m) => (
-            <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-              <div>
-                <div className="font-medium text-gray-900">{m.name}</div>
-                <div className="text-sm text-muted">{m.email}</div>
-              </div>
-              <Badge tone="secondary">{m.role}</Badge>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      <TeamAdminSection />
 
       <Card>
         <CardTitle>Microsoft 365 — send email</CardTitle>
