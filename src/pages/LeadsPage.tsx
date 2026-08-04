@@ -33,6 +33,8 @@ export function LeadsPage() {
   const updateLead = useCrmStore((s) => s.updateLead);
   const addLead = useCrmStore((s) => s.addLead);
   const convertLead = useCrmStore((s) => s.convertLead);
+  const remoteSyncStatus = useCrmStore((s) => s.remoteSyncStatus);
+  const remoteSyncError = useCrmStore((s) => s.remoteSyncError);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     name: '',
@@ -61,6 +63,11 @@ export function LeadsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted">
           {hasFilter ? `${leads.length} match(es)` : `${leads.length} leads · nurture and qualify`}
+          {remoteSyncStatus === 'loading' ? ' · loading from Supabase…' : null}
+          {remoteSyncStatus === 'ready' ? ' · synced from Supabase' : null}
+          {remoteSyncStatus === 'error' && remoteSyncError
+            ? ` · sync error: ${remoteSyncError}`
+            : null}
         </p>
         <Button onClick={() => setOpen(true)}>
           <UserPlus className="h-4 w-4" />

@@ -19,6 +19,9 @@ export function ContactsPage() {
   const { contacts, hasFilter } = useFilteredEntities();
   const companies = useCrmStore((s) => s.companies);
   const addContact = useCrmStore((s) => s.addContact);
+  const defaultOwnerId = useCrmStore((s) => s.defaultOwnerId);
+  const remoteSyncStatus = useCrmStore((s) => s.remoteSyncStatus);
+  const remoteSyncError = useCrmStore((s) => s.remoteSyncError);
   const [open, setOpen] = useState(false);
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -43,7 +46,7 @@ export function ContactsPage() {
       phone: form.phone.trim() || undefined,
       jobTitle: form.jobTitle.trim() || undefined,
       companyId: form.companyId || undefined,
-      ownerId: 'user-1',
+      ownerId: defaultOwnerId ?? 'user-1',
       tags: [],
       source: form.source,
       lifecycle: form.lifecycle,
@@ -126,6 +129,11 @@ export function ContactsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted">
           {hasFilter ? `Showing ${contacts.length} match(es)` : `${contacts.length} contacts`}
+          {remoteSyncStatus === 'loading' ? ' · loading from Supabase…' : null}
+          {remoteSyncStatus === 'ready' ? ' · synced from Supabase' : null}
+          {remoteSyncStatus === 'error' && remoteSyncError
+            ? ` · sync error: ${remoteSyncError}`
+            : null}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button

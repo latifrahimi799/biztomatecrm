@@ -26,6 +26,10 @@ export function SettingsPage() {
   const importCrmBackup = useCrmStore((s) => s.importCrmBackup);
   const userName = useAuthStore((s) => s.userName);
   const userEmail = useAuthStore((s) => s.userEmail);
+  const remoteSyncStatus = useCrmStore((s) => s.remoteSyncStatus);
+  const remoteSyncError = useCrmStore((s) => s.remoteSyncError);
+  const contactCount = useCrmStore((s) => s.contacts.length);
+  const leadCount = useCrmStore((s) => s.leads.length);
   const backupInputRef = useRef<HTMLInputElement>(null);
   const msConnected = useMicrosoftAuthStore((s) => Boolean(s.refreshToken || s.accessToken));
   const clearMicrosoft = useMicrosoftAuthStore((s) => s.clear);
@@ -49,6 +53,19 @@ export function SettingsPage() {
         <p className="mt-2 text-sm text-muted">
           Signed in as <span className="font-medium text-gray-900">{userName}</span> ({userEmail}
           ).
+        </p>
+        <p className="mt-2 text-sm text-muted">
+          Supabase people sync:{' '}
+          {remoteSyncStatus === 'loading' && 'loading…'}
+          {remoteSyncStatus === 'ready' && (
+            <span className="text-gray-800">
+              ready ({contactCount} contacts, {leadCount} leads)
+            </span>
+          )}
+          {remoteSyncStatus === 'error' && (
+            <span className="text-error">{remoteSyncError ?? 'failed'}</span>
+          )}
+          {remoteSyncStatus === 'idle' && 'idle'}
         </p>
         <div className="mt-4 rounded-lg bg-brand-muted/40 p-4 text-sm">
           <p className="font-medium text-brand">Biztomate brand</p>
@@ -196,14 +213,13 @@ export function SettingsPage() {
       <Card>
         <CardTitle>Where your data lives</CardTitle>
         <p className="mt-2 text-sm text-muted">
-          CRM records (contacts, deals, campaigns, templates, and so on) are stored in{' '}
-          <strong className="font-medium text-gray-800">this browser only</strong> (localStorage),
-          not in Postgres yet. Each origin is separate — a Vercel <em>preview</em> URL is a different
-          site than production, so it looks like data &quot;disappeared&quot; when you open another
-          URL. Production builds also start <strong>without</strong> demo companies/templates unless
-          you set <span className="font-mono text-xs">VITE_DEMO_DATA=true</span>. Full multi-device
-          sync requires wiring this app to your Supabase tables (schema is already in
-          <span className="font-mono text-xs"> supabase/migrations</span>) and optional Auth + RLS.
+          <strong className="font-medium text-gray-800">Contacts and leads</strong> load from
+          Supabase Postgres when you sign in, and new/updated rows write back to those tables.
+          Other CRM records (deals, campaigns, templates, and so on) still live in{' '}
+          <strong className="font-medium text-gray-800">this browser</strong> (localStorage) until
+          they are wired similarly. Apply the latest SQL under
+          <span className="font-mono text-xs"> supabase/migrations</span> so authenticated users can
+          read and write contacts/leads (RLS policies).
         </p>
       </Card>
 

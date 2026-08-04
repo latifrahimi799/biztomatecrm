@@ -17,11 +17,48 @@ import type {
 import { blocksToEmailHtml } from '../lib/emailBlocks/renderEmailHtml';
 import { createTextBlock, createButtonBlock } from '../lib/emailBlocks/blockFactory';
 import { defaultTextStyle } from '../types/emailBlocks';
+import {
+  deleteContactRemote,
+  isUuid,
+  type CrmPeoplePayload,
+  upsertContactRemote,
+  upsertLeadRemote,
+} from '../lib/supabase/crmData';
+import { isSupabaseConfigured } from '../lib/supabase/client';
 
 const now = () => new Date().toISOString();
 const uid = () => crypto.randomUUID();
 
 const OWNER = 'user-1';
+
+export type RemoteSyncStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+function resolveOwnerId(preferred: string | undefined, state: { defaultOwnerId: string | null }): string {
+  if (preferred && isUuid(preferred)) return preferred;
+  if (state.defaultOwnerId && isUuid(state.defaultOwnerId)) return state.defaultOwnerId;
+  return preferred || OWNER;
+}
+
+function queueContactUpsert(contact: Contact, defaultOwnerId: string | null) {
+  if (!isSupabaseConfigured || !defaultOwnerId) return;
+  void upsertContactRemote(contact, defaultOwnerId).then((err) => {
+    if (err) console.error('[crm] contact upsert failed:', err);
+  });
+}
+
+function queueContactDelete(id: string) {
+  if (!isSupabaseConfigured) return;
+  void deleteContactRemote(id).then((err) => {
+    if (err) console.error('[crm] contact delete failed:', err);
+  });
+}
+
+function queueLeadUpsert(lead: Lead, defaultOwnerId: string | null) {
+  if (!isSupabaseConfigured || !defaultOwnerId) return;
+  void upsertLeadRemote(lead, defaultOwnerId).then((err) => {
+    if (err) console.error('[crm] lead upsert failed:', err);
+  });
+}
 
 /** Single owner row used when CRM starts empty (production). */
 const minimalTeam: TeamMember[] = [
@@ -328,6 +365,14 @@ interface CrmState {
   campaigns: Campaign[];
   searchQuery: string;
 
+  /** Owner used for Supabase contact/lead inserts (team_members.id). */
+  defaultOwnerId: string | null;
+  remoteSyncStatus: RemoteSyncStatus;
+  remoteSyncError: string | null;
+
+  setRemoteSyncState: (s: { status: RemoteSyncStatus; error: string | null }) => void;
+  applyRemotePeople: (payload: CrmPeoplePayload) => void;
+
   addCompany: (c: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateCompany: (id: Id, patch: Partial<Company>) => void;
   removeCompany: (id: Id) => void;
@@ -499,6 +544,21 @@ export const useCrmStore = create<CrmState>()(
   persist(
     (set, get) => ({
       ...buildInitial(),
+      defaultOwnerId: null,
+      remoteSyncStatus: 'idle',
+      remoteSyncError: null,
+
+      setRemoteSyncState: ({ status, error }) =>
+        set({ remoteSyncStatus: status, remoteSyncError: error }),
+
+      applyRemotePeople: (payload) =>
+        set({
+          contacts: payload.contacts,
+          leads: payload.leads,
+          companies: payload.companies,
+          team: payload.team.length > 0 ? payload.team : get().team,
+          defaultOwnerId: payload.defaultOwnerId,
+        }),
 
       addCompany: (c) =>
         set((s) => ({
@@ -527,25 +587,31 @@ export const useCrmStore = create<CrmState>()(
         })),
 
       addContact: (c) => {
+        const ownerId = resolveOwnerId(c.ownerId, get());
         const row: Contact = {
           ...c,
+          ownerId,
           tags: c.tags ?? [],
           id: uid(),
           createdAt: now(),
           updatedAt: now(),
         };
         set((s) => ({ contacts: [...s.contacts, row] }));
+        queueContactUpsert(row, get().defaultOwnerId);
         return row;
       },
 
-      updateContact: (id, patch) =>
+      updateContact: (id, patch) => {
         set((s) => ({
           contacts: s.contacts.map((x) =>
             x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
           ),
-        })),
+        }));
+        const row = get().contacts.find((x) => x.id === id);
+        if (row) queueContactUpsert(row, get().defaultOwnerId);
+      },
 
-      removeContact: (id) =>
+      removeContact: (id) => {
         set((s) => ({
           contacts: s.contacts.filter((x) => x.id !== id),
           deals: s.deals.map((d) => ({
@@ -556,7 +622,9 @@ export const useCrmStore = create<CrmState>()(
             ...c,
             contactIds: c.contactIds.filter((cid) => cid !== id),
           })),
-        })),
+        }));
+        queueContactDelete(id);
+      },
 
       addDeal: (d) =>
         set((s) => ({
@@ -603,33 +671,35 @@ export const useCrmStore = create<CrmState>()(
       removeActivity: (id) =>
         set((s) => ({ activities: s.activities.filter((x) => x.id !== id) })),
 
-      addLead: (patch) =>
-        set((s) => ({
-          leads: [
-            ...s.leads,
-            {
-                id: uid(),
-                name: patch.name ?? 'New lead',
-                email: patch.email ?? '',
-                company: patch.company,
-                phone: patch.phone,
-                status: patch.status ?? 'new',
-                score: patch.score ?? 0,
-                source: patch.source ?? 'Manual',
-                notes: patch.notes,
-                ownerId: patch.ownerId ?? OWNER,
-                createdAt: now(),
-                updatedAt: now(),
-              },
-          ],
-        })),
+      addLead: (patch) => {
+        const ownerId = resolveOwnerId(patch.ownerId, get());
+        const row: Lead = {
+          id: uid(),
+          name: patch.name ?? 'New lead',
+          email: patch.email ?? '',
+          company: patch.company,
+          phone: patch.phone,
+          status: patch.status ?? 'new',
+          score: patch.score ?? 0,
+          source: patch.source ?? 'Manual',
+          notes: patch.notes,
+          ownerId,
+          createdAt: now(),
+          updatedAt: now(),
+        };
+        set((s) => ({ leads: [...s.leads, row] }));
+        queueLeadUpsert(row, get().defaultOwnerId);
+      },
 
-      updateLead: (id, patch) =>
+      updateLead: (id, patch) => {
         set((s) => ({
           leads: s.leads.map((x) =>
             x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
           ),
-        })),
+        }));
+        const row = get().leads.find((x) => x.id === id);
+        if (row) queueLeadUpsert(row, get().defaultOwnerId);
+      },
 
       convertLead: (leadId, overrides = {}) => {
         const lead = get().leads.find((l) => l.id === leadId);

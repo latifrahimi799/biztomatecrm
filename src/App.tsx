@@ -22,6 +22,7 @@ import { EmailTemplatesPage } from './pages/EmailTemplatesPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { CampaignDetailPage } from './pages/CampaignDetailPage';
 import { MicrosoftOAuthCallbackPage } from './pages/MicrosoftOAuthCallbackPage';
+import { SupabaseCrmSync } from './components/SupabaseCrmSync';
 
 function Protected({ children }: { children: ReactNode }) {
   const ready = useAuthStore((s) => s.ready);
@@ -49,6 +50,7 @@ export default function App() {
   return (
     <>
       <BackgroundWatermark />
+      <SupabaseCrmSync />
       <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/microsoft/callback" element={<MicrosoftOAuthCallbackPage />} />
