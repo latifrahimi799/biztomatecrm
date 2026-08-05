@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Check, Download, Pencil, Plus, Trash2, Upload, UserPlus } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -8,10 +8,13 @@ import { Select } from '../components/ui/Select';
 import { useCrmStore } from '../store/crmStore';
 import { useFilteredEntities } from '../hooks/useFilteredEntities';
 import {
+  LEAD_LOCATION_LABEL,
+  LEAD_LOCATION_TYPES,
   LEAD_STATUS_LABEL,
   LEAD_STATUSES,
   normalizeLeadContactFields,
   type Lead,
+  type LeadLocationType,
   type LeadStatus,
 } from '../types/crm';
 import {
@@ -39,6 +42,8 @@ type LeadFormState = {
   phones: string[];
   emails: string[];
   website: string;
+  city: string;
+  locationType: LeadLocationType;
   status: LeadStatus;
   notes: string;
 };
@@ -49,6 +54,8 @@ const emptyForm = (): LeadFormState => ({
   phones: [''],
   emails: [''],
   website: '',
+  city: '',
+  locationType: 'hq',
   status: 'dm',
   notes: '',
 });
@@ -61,6 +68,8 @@ function formFromLead(lead: Lead): LeadFormState {
     phones: n.phones.length > 0 ? [...n.phones] : [''],
     emails: n.emails.length > 0 ? [...n.emails] : [''],
     website: n.website ?? '',
+    city: n.city ?? '',
+    locationType: n.locationType === 'branch' ? 'branch' : 'hq',
     status: n.status,
     notes: n.notes ?? '',
   };
@@ -146,6 +155,34 @@ function LeadFormFields({
           onChange={(e) => setForm((f) => ({ ...f, company: e.target.value }))}
         />
       </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="mb-1 block text-xs font-medium">City</label>
+          <Input
+            value={form.city}
+            onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
+            placeholder="e.g. Toronto"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium">Location type</label>
+          <Select
+            value={form.locationType}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                locationType: e.target.value as LeadLocationType,
+              }))
+            }
+          >
+            {LEAD_LOCATION_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {LEAD_LOCATION_LABEL[t]}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </div>
       <MultiTextField
         label="Phone number"
         type="tel"
@@ -220,12 +257,15 @@ export function LeadsPage() {
   const { leads, hasFilter } = useFilteredEntities();
   const updateLead = useCrmStore((s) => s.updateLead);
   const addLead = useCrmStore((s) => s.addLead);
+  const removeLead = useCrmStore((s) => s.removeLead);
   const convertLead = useCrmStore((s) => s.convertLead);
   const remoteSyncStatus = useCrmStore((s) => s.remoteSyncStatus);
   const remoteSyncError = useCrmStore((s) => s.remoteSyncError);
   const remoteWriteError = useCrmStore((s) => s.remoteWriteError);
   const defaultOwnerId = useCrmStore((s) => s.defaultOwnerId);
 
+  const [cityFilter, setCityFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState<'' | LeadLocationType>('');
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<LeadFormState>(emptyForm);
   const [editId, setEditId] = useState<string | null>(null);
@@ -233,10 +273,31 @@ export function LeadsPage() {
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  const cityOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const raw of leads) {
+      const city = raw.city?.trim();
+      if (city) set.add(city);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [leads]);
+
+  const filteredLeads = useMemo(() => {
+    return leads.filter((raw) => {
+      const city = (raw.city ?? '').trim();
+      if (cityFilter && city.toLowerCase() !== cityFilter.toLowerCase()) return false;
+      if (locationFilter) {
+        const loc = raw.locationType === 'branch' ? 'branch' : 'hq';
+        if (loc !== locationFilter) return false;
+      }
+      return true;
+    });
+  }, [leads, cityFilter, locationFilter]);
+
   function exportCsv() {
-    const csv = leadsToCsv(leads);
+    const csv = leadsToCsv(filteredLeads);
     const stamp = new Date().toISOString().slice(0, 10);
-    const suffix = hasFilter ? '-filtered' : '';
+    const suffix = hasFilter || cityFilter || locationFilter ? '-filtered' : '';
     downloadLeadsCsv(`leads${suffix}-${stamp}.csv`, csv);
   }
 
@@ -262,7 +323,9 @@ export function LeadsPage() {
         .getState()
         .leads.flatMap((l) => {
           const n = normalizeLeadContactFields(l);
-          return n.emails.map((em) => em.toLowerCase()).concat(n.email ? [n.email.toLowerCase()] : []);
+          return n.emails
+            .map((em) => em.toLowerCase())
+            .concat(n.email ? [n.email.toLowerCase()] : []);
         })
         .filter(Boolean),
     );
@@ -303,6 +366,8 @@ export function LeadsPage() {
       phone: phones[0],
       phones,
       website: createForm.website.trim() || undefined,
+      city: createForm.city.trim() || undefined,
+      locationType: createForm.locationType,
       notes: createForm.notes.trim() || undefined,
       status: createForm.status,
       source: 'Manual',
@@ -330,6 +395,8 @@ export function LeadsPage() {
       phone: phones[0],
       phones,
       website: editForm.website.trim() || undefined,
+      city: editForm.city.trim() || undefined,
+      locationType: editForm.locationType,
       notes: editForm.notes.trim() || undefined,
       status: editForm.status,
     });
@@ -340,7 +407,9 @@ export function LeadsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted">
-          {hasFilter ? `${leads.length} match(es)` : `${leads.length} leads`}
+          {hasFilter || cityFilter || locationFilter
+            ? `${filteredLeads.length} match(es)`
+            : `${leads.length} leads`}
           {remoteSyncStatus === 'loading' ? ' · loading from Supabase…' : null}
           {remoteSyncStatus === 'ready' ? ' · synced from Supabase' : null}
           {remoteSyncStatus === 'error' && remoteSyncError
@@ -351,7 +420,10 @@ export function LeadsPage() {
             : null}
         </p>
         {remoteWriteError ? (
-          <p className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+          <p
+            className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+            role="alert"
+          >
             Could not save to Supabase: {remoteWriteError}
           </p>
         ) : null}
@@ -376,7 +448,7 @@ export function LeadsPage() {
             type="button"
             variant="outline"
             onClick={exportCsv}
-            disabled={leads.length === 0}
+            disabled={filteredLeads.length === 0}
           >
             <Download className="h-4 w-4" />
             Export
@@ -393,6 +465,54 @@ export function LeadsPage() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-[10rem]">
+          <label className="mb-1 block text-xs font-medium text-muted">City</label>
+          <Select
+            value={cityFilter}
+            onChange={(e) => setCityFilter(e.target.value)}
+            aria-label="Filter by city"
+          >
+            <option value="">All cities</option>
+            {cityOptions.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="min-w-[10rem]">
+          <label className="mb-1 block text-xs font-medium text-muted">HQ / Branch</label>
+          <Select
+            value={locationFilter}
+            onChange={(e) =>
+              setLocationFilter(e.target.value as '' | LeadLocationType)
+            }
+            aria-label="Filter by HQ or Branch"
+          >
+            <option value="">All</option>
+            {LEAD_LOCATION_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {LEAD_LOCATION_LABEL[t]}
+              </option>
+            ))}
+          </Select>
+        </div>
+        {cityFilter || locationFilter ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="!py-2 text-xs"
+            onClick={() => {
+              setCityFilter('');
+              setLocationFilter('');
+            }}
+          >
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
+
       {importNotice ? (
         <p className="text-sm text-muted" role="status">
           {importNotice}
@@ -401,11 +521,14 @@ export function LeadsPage() {
 
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[64rem] text-left text-sm">
+          <table className="w-full min-w-[72rem] text-left text-sm">
             <thead className="bg-brand/5 text-muted">
               <tr>
+                <th className="w-12 px-3 py-3 font-semibold" aria-label="Delete" />
                 <th className="px-4 py-3 font-semibold">Name</th>
                 <th className="px-4 py-3 font-semibold">Company</th>
+                <th className="px-4 py-3 font-semibold">City</th>
+                <th className="px-4 py-3 font-semibold">HQ / Branch</th>
                 <th className="px-4 py-3 font-semibold">Phone number</th>
                 <th className="px-4 py-3 font-semibold">Email</th>
                 <th className="px-4 py-3 font-semibold">Website</th>
@@ -416,22 +539,58 @@ export function LeadsPage() {
               </tr>
             </thead>
             <tbody>
-              {leads.length === 0 ? (
+              {filteredLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-muted">
-                    No leads yet. Create one or sync from Supabase.
+                  <td colSpan={12} className="px-4 py-10 text-center text-sm text-muted">
+                    No leads match these filters. Create one or clear filters.
                   </td>
                 </tr>
               ) : (
-                leads.map((raw) => {
+                filteredLeads.map((raw) => {
                   const l = normalizeLeadContactFields(raw);
+                  const locationType = l.locationType === 'branch' ? 'branch' : 'hq';
                   return (
                     <tr
                       key={l.id}
                       className="border-t border-brand/10 align-top hover:bg-brand/[0.03]"
                     >
+                      <td className="px-3 py-3">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="!px-2 !py-1.5 text-error"
+                          aria-label={`Delete ${l.name}`}
+                          title="Delete lead"
+                          onClick={() => {
+                            if (confirm(`Delete lead “${l.name}”?`)) {
+                              removeLead(l.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
                       <td className="px-4 py-3 font-medium text-gray-900">{l.name}</td>
                       <td className="px-4 py-3 text-muted">{l.company ?? '—'}</td>
+                      <td className="px-4 py-3 text-muted">{l.city?.trim() || '—'}</td>
+                      <td className="px-4 py-3">
+                        <Select
+                          className="!min-w-[7rem] !py-1.5 text-xs"
+                          value={locationType}
+                          onChange={(e) =>
+                            updateLead(l.id, {
+                              locationType: e.target.value as LeadLocationType,
+                            })
+                          }
+                          aria-label="HQ or Branch"
+                        >
+                          {LEAD_LOCATION_TYPES.map((t) => (
+                            <option key={t} value={t}>
+                              {LEAD_LOCATION_LABEL[t]}
+                            </option>
+                          ))}
+                        </Select>
+                      </td>
                       <td className="px-4 py-3 text-muted">{displayPhones(l)}</td>
                       <td className="px-4 py-3 text-muted">{displayEmails(l)}</td>
                       <td className="px-4 py-3">
