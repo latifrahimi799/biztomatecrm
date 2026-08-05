@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pencil, Plus, Trash2, UserPlus } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Download, Pencil, Plus, Trash2, Upload, UserPlus } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
@@ -14,6 +14,11 @@ import {
   type Lead,
   type LeadStatus,
 } from '../types/crm';
+import {
+  downloadLeadsCsv,
+  leadsToCsv,
+  parseLeadsCsvForImport,
+} from '../lib/leadCsv';
 
 const toneFor: Record<
   LeadStatus,
@@ -223,6 +228,66 @@ export function LeadsPage() {
   const [createForm, setCreateForm] = useState<LeadFormState>(emptyForm);
   const [editId, setEditId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<LeadFormState>(emptyForm);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  function exportCsv() {
+    const csv = leadsToCsv(leads);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const suffix = hasFilter ? '-filtered' : '';
+    downloadLeadsCsv(`leads${suffix}-${stamp}.csv`, csv);
+  }
+
+  async function onImportFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    const text = await file.text().catch(() => '');
+    if (!text) {
+      setImportNotice('Could not read that file.');
+      return;
+    }
+
+    const parsed = parseLeadsCsvForImport(text);
+    if (!parsed.ok) {
+      setImportNotice(parsed.error);
+      return;
+    }
+
+    const existing = new Set(
+      useCrmStore
+        .getState()
+        .leads.flatMap((l) => {
+          const n = normalizeLeadContactFields(l);
+          return n.emails.map((em) => em.toLowerCase()).concat(n.email ? [n.email.toLowerCase()] : []);
+        })
+        .filter(Boolean),
+    );
+
+    let imported = 0;
+    let skippedDup = 0;
+    let skippedBad = 0;
+
+    for (const row of parsed.rows) {
+      if (!row.ok) {
+        skippedBad++;
+        continue;
+      }
+      const emails = row.payload.emails.map((em) => em.toLowerCase()).filter(Boolean);
+      if (emails.some((em) => existing.has(em))) {
+        skippedDup++;
+        continue;
+      }
+      addLead(row.payload);
+      for (const em of emails) existing.add(em);
+      imported++;
+    }
+
+    setImportNotice(
+      `Imported ${imported} lead(s). Skipped ${skippedDup} duplicate email(s) and ${skippedBad} row(s) with errors.`,
+    );
+  }
 
   function submitCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -280,16 +345,49 @@ export function LeadsPage() {
             ? ` · sync error: ${remoteSyncError}`
             : null}
         </p>
-        <Button
-          onClick={() => {
-            setCreateForm(emptyForm());
-            setCreateOpen(true);
-          }}
-        >
-          <UserPlus className="h-4 w-4" />
-          New lead
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="sr-only"
+            aria-hidden
+            onChange={onImportFileChange}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => importInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4" />
+            Import
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={exportCsv}
+            disabled={leads.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+          <Button
+            onClick={() => {
+              setCreateForm(emptyForm());
+              setCreateOpen(true);
+            }}
+          >
+            <UserPlus className="h-4 w-4" />
+            New lead
+          </Button>
+        </div>
       </div>
+
+      {importNotice ? (
+        <p className="text-sm text-muted" role="status">
+          {importNotice}
+        </p>
+      ) : null}
 
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
