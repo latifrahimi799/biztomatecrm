@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Download, Pencil, Plus, Trash2, Upload, UserPlus } from 'lucide-react';
+import { Check, Download, Pencil, Plus, Trash2, Upload, UserPlus } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
@@ -483,7 +483,15 @@ export function LeadsPage() {
                         </Button>
                       </td>
                       <td className="px-4 py-3">
-                        {l.status !== 'sold' && l.status !== 'invalid_lead' ? (
+                        {l.status === 'sold' ? (
+                          <span
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-success/15 text-success"
+                            title="Converted"
+                            aria-label="Converted"
+                          >
+                            <Check className="h-5 w-5 stroke-[2.5]" aria-hidden />
+                          </span>
+                        ) : l.status !== 'invalid_lead' ? (
                           <Button
                             variant="outline"
                             className="!px-3 !py-1.5 text-xs"
