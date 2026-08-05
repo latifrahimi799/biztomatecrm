@@ -59,41 +59,104 @@ function remoteOwner(state: { defaultOwnerId: string | null }): string | null {
   return state.defaultOwnerId && isUuid(state.defaultOwnerId) ? state.defaultOwnerId : null;
 }
 
+/** In-flight remote upserts — used so workspace hydrate does not wipe unsaved rows. */
+const pendingRemoteIds = new Set<string>();
+
+/** Late-bound so queue helpers can report errors before the store const is initialized. */
+const writeErrorBus = {
+  set: (_message: string | null) => {
+    /* assigned after useCrmStore is created */
+  },
+};
+
+function markPending(id: string) {
+  pendingRemoteIds.add(id);
+}
+function clearPending(id: string) {
+  pendingRemoteIds.delete(id);
+}
+
 function logRemote(entity: string, err: string | null) {
-  if (err) console.error(`[crm] ${entity}:`, err);
+  if (err) {
+    console.error(`[crm] ${entity}:`, err);
+    writeErrorBus.set(err);
+  }
 }
 
 function queueCompanyUpsert(company: Company, ownerId: string | null) {
-  if (!isSupabaseConfigured || !ownerId) return;
-  void upsertCompanyRemote(company, ownerId).then((e) => logRemote('company upsert', e));
+  if (!isSupabaseConfigured) return;
+  if (!ownerId) {
+    logRemote('company upsert', 'Not linked to a team seat — changes not saved to Supabase.');
+    return;
+  }
+  markPending(company.id);
+  void upsertCompanyRemote(company, ownerId).then((e) => {
+    if (!e) clearPending(company.id);
+    logRemote('company upsert', e);
+  });
 }
 function queueCompanyDelete(id: string) {
   if (!isSupabaseConfigured) return;
   void deleteCompanyRemote(id).then((e) => logRemote('company delete', e));
 }
 function queueContactUpsert(contact: Contact, ownerId: string | null) {
-  if (!isSupabaseConfigured || !ownerId) return;
-  void upsertContactRemote(contact, ownerId).then((e) => logRemote('contact upsert', e));
+  if (!isSupabaseConfigured) return;
+  if (!ownerId) {
+    logRemote('contact upsert', 'Not linked to a team seat — changes not saved to Supabase.');
+    return;
+  }
+  markPending(contact.id);
+  void upsertContactRemote(contact, ownerId).then((e) => {
+    if (!e) clearPending(contact.id);
+    logRemote('contact upsert', e);
+  });
 }
 function queueContactDelete(id: string) {
   if (!isSupabaseConfigured) return;
   void deleteContactRemote(id).then((e) => logRemote('contact delete', e));
 }
 function queueLeadUpsert(lead: Lead, ownerId: string | null) {
-  if (!isSupabaseConfigured || !ownerId) return;
-  void upsertLeadRemote(lead, ownerId).then((e) => logRemote('lead upsert', e));
+  if (!isSupabaseConfigured) return;
+  if (!ownerId) {
+    logRemote('lead upsert', 'Not linked to a team seat — lead not saved to Supabase.');
+    return;
+  }
+  markPending(lead.id);
+  void upsertLeadRemote(lead, ownerId).then((e) => {
+    if (!e) {
+      clearPending(lead.id);
+      writeErrorBus.set(null);
+    }
+    logRemote('lead upsert', e);
+  });
 }
 function queueDealUpsert(deal: Deal, ownerId: string | null) {
-  if (!isSupabaseConfigured || !ownerId) return;
-  void upsertDealRemote(deal, ownerId).then((e) => logRemote('deal upsert', e));
+  if (!isSupabaseConfigured) return;
+  if (!ownerId) {
+    logRemote('deal upsert', 'Not linked to a team seat — changes not saved to Supabase.');
+    return;
+  }
+  markPending(deal.id);
+  void upsertDealRemote(deal, ownerId).then((e) => {
+    if (!e) clearPending(deal.id);
+    logRemote('deal upsert', e);
+  });
 }
 function queueDealDelete(id: string) {
   if (!isSupabaseConfigured) return;
   void deleteDealRemote(id).then((e) => logRemote('deal delete', e));
 }
 function queueActivityUpsert(activity: Activity, ownerId: string | null) {
-  if (!isSupabaseConfigured || !ownerId) return;
-  void upsertActivityRemote(activity, ownerId).then((e) => logRemote('activity upsert', e));
+  if (!isSupabaseConfigured) return;
+  if (!ownerId) {
+    logRemote('activity upsert', 'Not linked to a team seat — changes not saved to Supabase.');
+    return;
+  }
+  markPending(activity.id);
+  void upsertActivityRemote(activity, ownerId).then((e) => {
+    if (!e) clearPending(activity.id);
+    logRemote('activity upsert', e);
+  });
 }
 function queueActivityDelete(id: string) {
   if (!isSupabaseConfigured) return;
@@ -101,27 +164,63 @@ function queueActivityDelete(id: string) {
 }
 function queueProductUpsert(product: Product) {
   if (!isSupabaseConfigured) return;
-  void upsertProductRemote(product).then((e) => logRemote('product upsert', e));
+  markPending(product.id);
+  void upsertProductRemote(product).then((e) => {
+    if (!e) clearPending(product.id);
+    logRemote('product upsert', e);
+  });
 }
 function queueQuoteUpsert(quote: Quote, ownerId: string | null) {
-  if (!isSupabaseConfigured || !ownerId) return;
-  void upsertQuoteRemote(quote, ownerId).then((e) => logRemote('quote upsert', e));
+  if (!isSupabaseConfigured) return;
+  if (!ownerId) {
+    logRemote('quote upsert', 'Not linked to a team seat — changes not saved to Supabase.');
+    return;
+  }
+  markPending(quote.id);
+  void upsertQuoteRemote(quote, ownerId).then((e) => {
+    if (!e) clearPending(quote.id);
+    logRemote('quote upsert', e);
+  });
 }
 function queueTemplateUpsert(template: EmailTemplate, ownerId: string | null) {
-  if (!isSupabaseConfigured || !ownerId) return;
-  void upsertTemplateRemote(template, ownerId).then((e) => logRemote('template upsert', e));
+  if (!isSupabaseConfigured) return;
+  if (!ownerId) {
+    logRemote('template upsert', 'Not linked to a team seat — changes not saved to Supabase.');
+    return;
+  }
+  markPending(template.id);
+  void upsertTemplateRemote(template, ownerId).then((e) => {
+    if (!e) clearPending(template.id);
+    logRemote('template upsert', e);
+  });
 }
 function queueTemplateDelete(id: string) {
   if (!isSupabaseConfigured) return;
   void deleteTemplateRemote(id).then((e) => logRemote('template delete', e));
 }
 function queueCampaignUpsert(campaign: Campaign, ownerId: string | null) {
-  if (!isSupabaseConfigured || !ownerId) return;
-  void upsertCampaignRemote(campaign, ownerId).then((e) => logRemote('campaign upsert', e));
+  if (!isSupabaseConfigured) return;
+  if (!ownerId) {
+    logRemote('campaign upsert', 'Not linked to a team seat — changes not saved to Supabase.');
+    return;
+  }
+  markPending(campaign.id);
+  void upsertCampaignRemote(campaign, ownerId).then((e) => {
+    if (!e) clearPending(campaign.id);
+    logRemote('campaign upsert', e);
+  });
 }
 function queueCampaignDelete(id: string) {
   if (!isSupabaseConfigured) return;
   void deleteCampaignRemote(id).then((e) => logRemote('campaign delete', e));
+}
+
+function mergePending<T extends { id: string }>(remote: T[], local: T[]): T[] {
+  if (pendingRemoteIds.size === 0) return remote;
+  const remoteIds = new Set(remote.map((r) => r.id));
+  const kept = local.filter((row) => pendingRemoteIds.has(row.id) && !remoteIds.has(row.id));
+  if (kept.length === 0) return remote;
+  return [...remote, ...kept];
 }
 
 /** Single owner row used when CRM starts empty (production). */
@@ -439,7 +538,10 @@ interface CrmState {
   defaultOwnerId: string | null;
   remoteSyncStatus: RemoteSyncStatus;
   remoteSyncError: string | null;
+  /** Last Supabase write failure (shown so silent RLS / schema errors are visible). */
+  remoteWriteError: string | null;
 
+  setDefaultOwnerId: (id: string | null) => void;
   setRemoteSyncState: (s: { status: RemoteSyncStatus; error: string | null }) => void;
   applyRemoteWorkspace: (payload: CrmWorkspacePayload) => void;
 
@@ -617,24 +719,30 @@ export const useCrmStore = create<CrmState>()(
       defaultOwnerId: null,
       remoteSyncStatus: 'idle',
       remoteSyncError: null,
+      remoteWriteError: null,
+
+      setDefaultOwnerId: (id) =>
+        set({ defaultOwnerId: id && isUuid(id) ? id : null }),
 
       setRemoteSyncState: ({ status, error }) =>
         set({ remoteSyncStatus: status, remoteSyncError: error }),
 
-      applyRemoteWorkspace: (payload) =>
+      applyRemoteWorkspace: (payload) => {
+        const prev = get();
         set({
-          companies: payload.companies,
-          contacts: payload.contacts,
-          leads: payload.leads,
-          deals: payload.deals,
-          activities: payload.activities,
-          products: payload.products,
-          quotes: payload.quotes,
-          emailTemplates: payload.emailTemplates,
-          campaigns: payload.campaigns,
-          team: payload.team.length > 0 ? payload.team : get().team,
+          companies: mergePending(payload.companies, prev.companies),
+          contacts: mergePending(payload.contacts, prev.contacts),
+          leads: mergePending(payload.leads, prev.leads),
+          deals: mergePending(payload.deals, prev.deals),
+          activities: mergePending(payload.activities, prev.activities),
+          products: mergePending(payload.products, prev.products),
+          quotes: mergePending(payload.quotes, prev.quotes),
+          emailTemplates: mergePending(payload.emailTemplates, prev.emailTemplates),
+          campaigns: mergePending(payload.campaigns, prev.campaigns),
+          team: payload.team.length > 0 ? payload.team : prev.team,
           defaultOwnerId: payload.defaultOwnerId,
-        }),
+        });
+      },
 
       addCompany: (c) => {
         const ownerId = resolveOwnerId(c.ownerId, get());
@@ -1063,3 +1171,7 @@ export const useCrmStore = create<CrmState>()(
     },
   ),
 );
+
+writeErrorBus.set = (message) => {
+  useCrmStore.setState({ remoteWriteError: message });
+};

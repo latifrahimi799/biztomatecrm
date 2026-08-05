@@ -6,6 +6,7 @@ import { useCrmStore } from '../store/crmStore';
 
 /**
  * After Auth + workspace identity, load CRM rows (RLS scopes by owner / super_admin).
+ * Sets defaultOwnerId as soon as teamMemberId is known so writes are not silently skipped.
  */
 export function SupabaseCrmSync() {
   const userEmail = useAuthStore((s) => s.userEmail);
@@ -14,7 +15,14 @@ export function SupabaseCrmSync() {
   const ready = useAuthStore((s) => s.ready);
   const applyRemoteWorkspace = useCrmStore((s) => s.applyRemoteWorkspace);
   const setRemoteSyncState = useCrmStore((s) => s.setRemoteSyncState);
+  const setDefaultOwnerId = useCrmStore((s) => s.setDefaultOwnerId);
   const lastKey = useRef<string | null>(null);
+
+  // Stamp owner seat immediately so lead/contact creates can write to Supabase
+  useEffect(() => {
+    if (!ready) return;
+    setDefaultOwnerId(teamMemberId);
+  }, [ready, teamMemberId, setDefaultOwnerId]);
 
   useEffect(() => {
     if (!ready) return;

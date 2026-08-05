@@ -223,6 +223,8 @@ export function LeadsPage() {
   const convertLead = useCrmStore((s) => s.convertLead);
   const remoteSyncStatus = useCrmStore((s) => s.remoteSyncStatus);
   const remoteSyncError = useCrmStore((s) => s.remoteSyncError);
+  const remoteWriteError = useCrmStore((s) => s.remoteWriteError);
+  const defaultOwnerId = useCrmStore((s) => s.defaultOwnerId);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState<LeadFormState>(emptyForm);
@@ -344,7 +346,15 @@ export function LeadsPage() {
           {remoteSyncStatus === 'error' && remoteSyncError
             ? ` · sync error: ${remoteSyncError}`
             : null}
+          {!defaultOwnerId && remoteSyncStatus !== 'loading'
+            ? ' · no team seat linked — new leads may not save'
+            : null}
         </p>
+        {remoteWriteError ? (
+          <p className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800" role="alert">
+            Could not save to Supabase: {remoteWriteError}
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           <input
             ref={importInputRef}

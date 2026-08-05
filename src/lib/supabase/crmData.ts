@@ -367,6 +367,13 @@ function mapCampaign(
 
 // ——— to-row helpers ———
 
+/** Prefer a valid UUID owner; fall back to workspace seat (caller's team_members.id). */
+function resolvedOwnerId(entityOwnerId: string | undefined, defaultOwnerId: string): string {
+  if (isUuid(entityOwnerId)) return entityOwnerId;
+  if (isUuid(defaultOwnerId)) return defaultOwnerId;
+  return entityOwnerId || defaultOwnerId;
+}
+
 function companyToRow(c: Company, ownerId: string) {
   return {
     id: c.id,
@@ -376,7 +383,7 @@ function companyToRow(c: Company, ownerId: string) {
     phone: c.phone ?? null,
     employee_count: c.employeeCount ?? null,
     address: c.address ?? null,
-    owner_id: isUuid(c.ownerId) ? c.ownerId : ownerId,
+    owner_id: resolvedOwnerId(c.ownerId, ownerId),
     created_at: c.createdAt,
     updated_at: c.updatedAt,
   };
@@ -391,7 +398,7 @@ function contactToRow(c: Contact, ownerId: string) {
     phone: c.phone ?? null,
     job_title: c.jobTitle ?? null,
     company_id: optUuid(c.companyId),
-    owner_id: isUuid(c.ownerId) ? c.ownerId : ownerId,
+    owner_id: resolvedOwnerId(c.ownerId, ownerId),
     tags: c.tags ?? [],
     source: c.source ?? '',
     lifecycle: c.lifecycle,
@@ -416,7 +423,8 @@ function leadToRow(l: Lead, ownerId: string) {
     score: n.score,
     source: n.source ?? '',
     notes: n.notes ?? null,
-    owner_id: isUuid(n.ownerId) ? n.ownerId : ownerId,
+    // Always stamp a real team_members.id so RLS owner checks can pass
+    owner_id: resolvedOwnerId(n.ownerId, ownerId),
     created_at: n.createdAt,
     updated_at: n.updatedAt,
   };
@@ -432,7 +440,7 @@ function dealToRow(d: Deal, ownerId: string) {
     currency: d.currency || 'CAD',
     probability: d.probability,
     expected_close_date: asDate(d.expectedCloseDate),
-    owner_id: isUuid(d.ownerId) ? d.ownerId : ownerId,
+    owner_id: resolvedOwnerId(d.ownerId, ownerId),
     created_at: d.createdAt,
     updated_at: d.updatedAt,
   };
@@ -448,7 +456,7 @@ function activityToRow(a: Activity, ownerId: string) {
     completed_at: asIso(a.completedAt),
     related_type: a.relatedType ?? null,
     related_id: optUuid(a.relatedId),
-    owner_id: isUuid(a.ownerId) ? a.ownerId : ownerId,
+    owner_id: resolvedOwnerId(a.ownerId, ownerId),
     created_at: a.createdAt,
   };
 }
@@ -474,7 +482,7 @@ function quoteToRow(q: Quote, ownerId: string) {
     contact_id: optUuid(q.contactId),
     status: q.status,
     valid_until: asDate(q.validUntil),
-    owner_id: isUuid(q.ownerId) ? q.ownerId : ownerId,
+    owner_id: resolvedOwnerId(q.ownerId, ownerId),
     created_at: q.createdAt,
     updated_at: q.updatedAt,
   };
@@ -490,7 +498,7 @@ function templateToRow(t: EmailTemplate, ownerId: string) {
     blocks: t.blocks ?? null,
     category: t.category,
     active: t.active,
-    owner_id: isUuid(t.ownerId) ? t.ownerId : ownerId,
+    owner_id: resolvedOwnerId(t.ownerId, ownerId),
     created_at: t.createdAt,
     updated_at: t.updatedAt,
   };
@@ -510,7 +518,7 @@ function campaignToRow(c: Campaign, ownerId: string) {
     currency: c.currency || 'CAD',
     description: c.description ?? null,
     template_id: optUuid(c.templateId),
-    owner_id: isUuid(c.ownerId) ? c.ownerId : ownerId,
+    owner_id: resolvedOwnerId(c.ownerId, ownerId),
     created_at: c.createdAt,
     updated_at: c.updatedAt,
   };
@@ -716,9 +724,11 @@ export async function upsertLeadRemote(
 ): Promise<string | null> {
   const client = await requireClient();
   if (!client || !isUuid(lead.id)) return null;
-  const { error } = await client
-    .from('leads')
-    .upsert(leadToRow(lead, defaultOwnerId), { onConflict: 'id' });
+  const row = leadToRow(lead, defaultOwnerId);
+  if (!isUuid(row.owner_id)) {
+    return 'Cannot save lead: your account is not linked to a team seat (owner).';
+  }
+  const { error } = await client.from('leads').upsert(row, { onConflict: 'id' });
   return error?.message ?? null;
 }
 
