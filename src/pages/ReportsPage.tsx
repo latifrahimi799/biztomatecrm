@@ -43,7 +43,7 @@ export function ReportsPage() {
       totalDeals: deals.length,
       closedCount: closed.length,
       completedTasks: activities.filter((a) => a.completedAt).length,
-      leadConversion: leads.filter((l) => l.status === 'converted').length,
+      leadConversion: leads.filter((l) => l.status === 'sold').length,
     };
   }, [deals, activities, leads]);
 

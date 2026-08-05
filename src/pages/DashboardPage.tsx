@@ -14,7 +14,7 @@ import { ArrowRight, TrendingUp } from 'lucide-react';
 import { Card, CardTitle } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { useCrmStore } from '../store/crmStore';
-import { DEAL_STAGE_LABEL, type DealStage } from '../types/crm';
+import { DEAL_STAGE_LABEL, type DealStage, isOpenLeadStatus } from '../types/crm';
 import { formatDate, formatMoney, relativeTime } from '../lib/format';
 
 const STAGES: DealStage[] = ['lead', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
@@ -37,8 +37,7 @@ export function DashboardPage() {
       pipeline,
       weighted,
       won,
-      leadCount: leads.filter((l) => l.status !== 'converted' && l.status !== 'disqualified')
-        .length,
+      leadCount: leads.filter((l) => isOpenLeadStatus(l.status)).length,
     };
   }, [deals, leads]);
 

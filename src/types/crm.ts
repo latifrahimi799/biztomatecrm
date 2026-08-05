@@ -15,12 +15,42 @@ export type DealStage =
 export type ActivityType = 'task' | 'call' | 'meeting' | 'email' | 'note';
 
 export type LeadStatus =
-  | 'new'
-  | 'working'
-  | 'nurturing'
-  | 'qualified'
-  | 'disqualified'
-  | 'converted';
+  | 'dm'
+  | 'stuck_gatekeeper'
+  | 'presentation'
+  | 'not_interested'
+  | 'consultation_booked'
+  | 'sold'
+  | 'invalid_lead';
+
+export const LEAD_STATUSES: LeadStatus[] = [
+  'dm',
+  'stuck_gatekeeper',
+  'presentation',
+  'not_interested',
+  'consultation_booked',
+  'sold',
+  'invalid_lead',
+];
+
+export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
+  dm: 'DM',
+  stuck_gatekeeper: 'Stuck at GateKeeper',
+  presentation: 'Presentation',
+  not_interested: 'Not interested',
+  consultation_booked: 'Consultation booked',
+  sold: 'Sold',
+  invalid_lead: 'Invalid Lead',
+};
+
+/** Active pipeline (not closed / invalid). */
+export function isOpenLeadStatus(status: LeadStatus): boolean {
+  return (
+    status !== 'not_interested' &&
+    status !== 'sold' &&
+    status !== 'invalid_lead'
+  );
+}
 
 export type ContactLifecycle = 'subscriber' | 'lead' | 'customer' | 'churned';
 

@@ -284,7 +284,7 @@ const seedLeads: Lead[] = [
     name: 'Maria Volkov',
     email: 'maria.v@example.org',
     company: 'BrightPath Health',
-    status: 'working',
+    status: 'presentation',
     score: 72,
     source: 'Website form',
     ownerId: OWNER,
@@ -296,7 +296,7 @@ const seedLeads: Lead[] = [
     name: 'David Park',
     email: 'd.park@example.org',
     company: 'Urban Logistics Co',
-    status: 'new',
+    status: 'dm',
     score: 45,
     source: 'Referral',
     ownerId: OWNER,
@@ -782,7 +782,7 @@ export const useCrmStore = create<CrmState>()(
           email: patch.email ?? '',
           company: patch.company,
           phone: patch.phone,
-          status: patch.status ?? 'new',
+          status: patch.status ?? 'dm',
           score: patch.score ?? 0,
           source: patch.source ?? 'Manual',
           notes: patch.notes,
@@ -822,7 +822,7 @@ export const useCrmStore = create<CrmState>()(
           lifecycle: overrides.lifecycle ?? 'customer',
           notes: overrides.notes ?? lead.notes,
         });
-        get().updateLead(leadId, { status: 'converted' });
+        get().updateLead(leadId, { status: 'sold' });
       },
 
       addProduct: (p) => {

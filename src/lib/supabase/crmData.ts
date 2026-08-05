@@ -18,12 +18,28 @@ import type {
   Quote,
   TeamMember,
 } from '../../types/crm';
+import { LEAD_STATUSES } from '../../types/crm';
 import type { EmailBlock } from '../../types/emailBlocks';
 import { isSupabaseConfigured, supabase } from './client';
 import { ensureWorkspaceIdentity } from './users';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const LEGACY_LEAD_STATUS: Record<string, LeadStatus> = {
+  new: 'dm',
+  working: 'presentation',
+  nurturing: 'stuck_gatekeeper',
+  qualified: 'consultation_booked',
+  converted: 'sold',
+  disqualified: 'invalid_lead',
+};
+
+function normalizeLeadStatus(raw: string | null | undefined): LeadStatus {
+  if (!raw) return 'dm';
+  if ((LEAD_STATUSES as string[]).includes(raw)) return raw as LeadStatus;
+  return LEGACY_LEAD_STATUS[raw] ?? 'dm';
+}
 
 export function isUuid(value: string | undefined | null): value is string {
   return Boolean(value && UUID_RE.test(value));
@@ -85,7 +101,7 @@ type LeadRow = {
   email: string;
   company: string | null;
   phone: string | null;
-  status: LeadStatus;
+  status: string;
   score: number;
   source: string;
   notes: string | null;
@@ -229,7 +245,7 @@ function mapLead(row: LeadRow): Lead {
     email: row.email,
     company: row.company ?? undefined,
     phone: row.phone ?? undefined,
-    status: row.status,
+    status: normalizeLeadStatus(row.status),
     score: num(row.score),
     source: row.source ?? '',
     notes: row.notes ?? undefined,
@@ -386,7 +402,7 @@ function leadToRow(l: Lead, ownerId: string) {
     email: l.email,
     company: l.company ?? null,
     phone: l.phone ?? null,
-    status: l.status,
+    status: normalizeLeadStatus(l.status),
     score: l.score,
     source: l.source ?? '',
     notes: l.notes ?? null,
