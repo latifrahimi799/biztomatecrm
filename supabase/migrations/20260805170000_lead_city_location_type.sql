@@ -1,4 +1,5 @@
 -- Lead city / location type for filtering (HQ vs Branch)
+-- Prefer 20260805171000_fix_owner_trigger_and_lead_city.sql if the owner trigger blocks updates.
 
 ALTER TABLE public.leads
   ADD COLUMN IF NOT EXISTS city TEXT;
