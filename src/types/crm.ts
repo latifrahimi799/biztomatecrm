@@ -115,9 +115,16 @@ export interface Activity {
 export interface Lead {
   id: Id;
   name: string;
+  /** Primary email (first of emails) — kept for back-compat. */
   email: string;
+  /** All emails; first is primary. */
+  emails: string[];
   company?: string;
+  /** Primary phone (first of phones). */
   phone?: string;
+  /** All phone numbers; first is primary. */
+  phones: string[];
+  website?: string;
   status: LeadStatus;
   score: number;
   source: string;
@@ -125,6 +132,44 @@ export interface Lead {
   createdAt: string;
   updatedAt: string;
   notes?: string;
+}
+
+/** Normalize lead contact fields so emails/phones always exist. */
+export function normalizeLeadContactFields<T extends Partial<Lead>>(lead: T): T & {
+  email: string;
+  emails: string[];
+  phone?: string;
+  phones: string[];
+} {
+  const emailsFromList = (lead.emails ?? [])
+    .map((e) => e.trim())
+    .filter(Boolean);
+  const emailPrimary = (lead.email ?? '').trim();
+  const emails =
+    emailsFromList.length > 0
+      ? emailsFromList
+      : emailPrimary
+        ? [emailPrimary]
+        : [];
+
+  const phonesFromList = (lead.phones ?? [])
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const phonePrimary = (lead.phone ?? '').trim();
+  const phones =
+    phonesFromList.length > 0
+      ? phonesFromList
+      : phonePrimary
+        ? [phonePrimary]
+        : [];
+
+  return {
+    ...lead,
+    email: emails[0] ?? '',
+    emails,
+    phone: phones[0] || undefined,
+    phones,
+  };
 }
 
 export interface Product {

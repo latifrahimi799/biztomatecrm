@@ -18,7 +18,7 @@ import type {
   Quote,
   TeamMember,
 } from '../../types/crm';
-import { LEAD_STATUSES } from '../../types/crm';
+import { LEAD_STATUSES, normalizeLeadContactFields } from '../../types/crm';
 import type { EmailBlock } from '../../types/emailBlocks';
 import { isSupabaseConfigured, supabase } from './client';
 import { ensureWorkspaceIdentity } from './users';
@@ -99,8 +99,11 @@ type LeadRow = {
   id: string;
   name: string;
   email: string;
+  emails: string[] | null;
   company: string | null;
   phone: string | null;
+  phones: string[] | null;
+  website: string | null;
   status: string;
   score: number;
   source: string;
@@ -239,12 +242,15 @@ function mapContact(row: ContactRow): Contact {
 }
 
 function mapLead(row: LeadRow): Lead {
-  return {
+  return normalizeLeadContactFields({
     id: row.id,
     name: row.name,
     email: row.email,
+    emails: row.emails ?? undefined,
     company: row.company ?? undefined,
     phone: row.phone ?? undefined,
+    phones: row.phones ?? undefined,
+    website: row.website ?? undefined,
     status: normalizeLeadStatus(row.status),
     score: num(row.score),
     source: row.source ?? '',
@@ -252,7 +258,7 @@ function mapLead(row: LeadRow): Lead {
     ownerId: row.owner_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-  };
+  });
 }
 
 function mapDeal(row: DealRow, contactIds: string[]): Deal {
@@ -396,19 +402,23 @@ function contactToRow(c: Contact, ownerId: string) {
 }
 
 function leadToRow(l: Lead, ownerId: string) {
+  const n = normalizeLeadContactFields(l);
   return {
-    id: l.id,
-    name: l.name,
-    email: l.email,
-    company: l.company ?? null,
-    phone: l.phone ?? null,
-    status: normalizeLeadStatus(l.status),
-    score: l.score,
-    source: l.source ?? '',
-    notes: l.notes ?? null,
-    owner_id: isUuid(l.ownerId) ? l.ownerId : ownerId,
-    created_at: l.createdAt,
-    updated_at: l.updatedAt,
+    id: n.id,
+    name: n.name,
+    email: n.email || '',
+    emails: n.emails,
+    company: n.company ?? null,
+    phone: n.phone ?? null,
+    phones: n.phones,
+    website: n.website?.trim() || null,
+    status: normalizeLeadStatus(n.status),
+    score: n.score,
+    source: n.source ?? '',
+    notes: n.notes ?? null,
+    owner_id: isUuid(n.ownerId) ? n.ownerId : ownerId,
+    created_at: n.createdAt,
+    updated_at: n.updatedAt,
   };
 }
 

@@ -14,6 +14,7 @@ import type {
   Quote,
   TeamMember,
 } from '../types/crm';
+import { normalizeLeadContactFields } from '../types/crm';
 import { blocksToEmailHtml } from '../lib/emailBlocks/renderEmailHtml';
 import { createTextBlock, createButtonBlock } from '../lib/emailBlocks/blockFactory';
 import { defaultTextStyle } from '../types/emailBlocks';
@@ -283,7 +284,11 @@ const seedLeads: Lead[] = [
     id: 'ld-1',
     name: 'Maria Volkov',
     email: 'maria.v@example.org',
+    emails: ['maria.v@example.org'],
     company: 'BrightPath Health',
+    phone: '+1 555 0101',
+    phones: ['+1 555 0101'],
+    website: 'https://brightpath.example',
     status: 'presentation',
     score: 72,
     source: 'Website form',
@@ -295,7 +300,9 @@ const seedLeads: Lead[] = [
     id: 'ld-2',
     name: 'David Park',
     email: 'd.park@example.org',
+    emails: ['d.park@example.org'],
     company: 'Urban Logistics Co',
+    phones: [],
     status: 'dm',
     score: 45,
     source: 'Referral',
@@ -776,12 +783,15 @@ export const useCrmStore = create<CrmState>()(
 
       addLead: (patch) => {
         const ownerId = resolveOwnerId(patch.ownerId, get());
-        const row: Lead = {
+        const row: Lead = normalizeLeadContactFields({
           id: uid(),
           name: patch.name ?? 'New lead',
           email: patch.email ?? '',
+          emails: patch.emails,
           company: patch.company,
           phone: patch.phone,
+          phones: patch.phones,
+          website: patch.website,
           status: patch.status ?? 'dm',
           score: patch.score ?? 0,
           source: patch.source ?? 'Manual',
@@ -789,16 +799,21 @@ export const useCrmStore = create<CrmState>()(
           ownerId,
           createdAt: now(),
           updatedAt: now(),
-        };
+        });
         set((s) => ({ leads: [...s.leads, row] }));
         queueLeadUpsert(row, remoteOwner(get()));
       },
 
       updateLead: (id, patch) => {
         set((s) => ({
-          leads: s.leads.map((x) =>
-            x.id === id ? { ...x, ...patch, updatedAt: now() } : x,
-          ),
+          leads: s.leads.map((x) => {
+            if (x.id !== id) return x;
+            return normalizeLeadContactFields({
+              ...x,
+              ...patch,
+              updatedAt: now(),
+            });
+          }),
         }));
         const row = get().leads.find((x) => x.id === id);
         if (row) queueLeadUpsert(row, remoteOwner(get()));
@@ -807,20 +822,21 @@ export const useCrmStore = create<CrmState>()(
       convertLead: (leadId, overrides = {}) => {
         const lead = get().leads.find((l) => l.id === leadId);
         if (!lead) return;
-        const [firstName, ...rest] = lead.name.trim().split(/\s+/);
+        const n = normalizeLeadContactFields(lead);
+        const [firstName, ...rest] = n.name.trim().split(/\s+/);
         const lastName = rest.join(' ') || '—';
         get().addContact({
           firstName: overrides.firstName ?? firstName,
           lastName: overrides.lastName ?? lastName,
-          email: overrides.email ?? lead.email,
-          phone: overrides.phone ?? lead.phone,
+          email: overrides.email ?? n.email,
+          phone: overrides.phone ?? n.phone,
           jobTitle: overrides.jobTitle,
           companyId: overrides.companyId,
-          ownerId: overrides.ownerId ?? lead.ownerId,
+          ownerId: overrides.ownerId ?? n.ownerId,
           tags: overrides.tags?.length ? overrides.tags : ['converted-lead'],
-          source: overrides.source ?? lead.source,
+          source: overrides.source ?? n.source,
           lifecycle: overrides.lifecycle ?? 'customer',
-          notes: overrides.notes ?? lead.notes,
+          notes: overrides.notes ?? n.notes,
         });
         get().updateLead(leadId, { status: 'sold' });
       },
@@ -1033,9 +1049,13 @@ export const useCrmStore = create<CrmState>()(
       }),
       merge: (persisted, current) => {
         const p = persisted as Partial<CrmState>;
+        const leads = Array.isArray(p.leads)
+          ? p.leads.map((l) => normalizeLeadContactFields(l as Lead))
+          : current.leads;
         return {
           ...current,
           ...p,
+          leads,
           emailTemplates: p.emailTemplates ?? current.emailTemplates,
           campaigns: p.campaigns ?? current.campaigns,
         };
