@@ -13,6 +13,7 @@ import {
   Settings,
   Target,
   Users,
+  X,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { useAuthStore } from '../../store/authStore';
@@ -32,19 +33,55 @@ const items = [
   { to: '/settings', label: 'Setup', icon: Settings },
 ] as const;
 
-export function Sidebar() {
+type SidebarProps = {
+  open: boolean;
+  isDesktop: boolean;
+  onClose: () => void;
+};
+
+export function Sidebar({ open, isDesktop, onClose }: SidebarProps) {
   const logout = useAuthStore((s) => s.logout);
 
+  // Desktop collapsed: remove from layout flow entirely
+  if (isDesktop && !open) {
+    return null;
+  }
+
   return (
-    <aside className="flex h-full w-60 flex-col border-r border-brand/15 bg-white/80 shadow-[4px_0_24px_rgba(10,132,255,0.06)] backdrop-blur-xl">
-      <div className="flex items-center gap-2.5 border-b border-brand/10 bg-gradient-to-r from-brand/10 via-white to-brand-secondary/10 px-5 py-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-secondary text-sm font-bold text-white shadow-md shadow-brand/30">
-          B
+    <aside
+      id="app-sidebar"
+      className={cn(
+        'flex h-full w-60 flex-col border-r border-brand/15 bg-white/95 shadow-[4px_0_24px_rgba(10,132,255,0.08)] backdrop-blur-xl',
+        isDesktop
+          ? 'relative z-20 shrink-0'
+          : cn(
+              'fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out',
+              open ? 'translate-x-0' : '-translate-x-full pointer-events-none',
+            ),
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-brand/10 bg-gradient-to-r from-brand/10 via-white to-brand-secondary/10 px-4 py-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-secondary text-sm font-bold text-white shadow-md shadow-brand/30">
+            B
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-bold tracking-tight text-gray-900">
+              Biztomate
+            </div>
+            <div className="text-xs font-medium text-brand">CRM</div>
+          </div>
         </div>
-        <div>
-          <div className="text-sm font-bold tracking-tight text-gray-900">Biztomate</div>
-          <div className="text-xs font-medium text-brand">CRM</div>
-        </div>
+        {!isDesktop ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-brand/10 hover:text-brand"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        ) : null}
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
@@ -52,6 +89,9 @@ export function Sidebar() {
           <NavLink
             key={to}
             to={to}
+            onClick={() => {
+              if (!isDesktop) onClose();
+            }}
             className={({ isActive }) =>
               cn(
                 'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200',
