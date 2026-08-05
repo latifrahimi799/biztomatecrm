@@ -1,4 +1,4 @@
-import { Menu, Search, X } from 'lucide-react';
+import { Menu, Search } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { useCrmStore } from '../../store/crmStore';
 import { useAuthStore } from '../../store/authStore';
@@ -22,11 +22,11 @@ export function TopBar({ title, sidebarOpen, onMenuClick }: TopBarProps) {
           type="button"
           onClick={onMenuClick}
           className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-brand/15 bg-white text-brand shadow-sm transition-colors hover:bg-brand/10"
-          aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+          aria-label={sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'}
           aria-expanded={sidebarOpen}
           aria-controls="app-sidebar"
         >
-          {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          <Menu className="h-5 w-5" aria-hidden />
         </button>
         <h1 className="truncate bg-gradient-to-r from-gray-900 via-brand to-brand-secondary bg-clip-text text-base font-bold tracking-tight text-transparent sm:text-lg">
           {title}

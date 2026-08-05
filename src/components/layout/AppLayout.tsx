@@ -55,6 +55,16 @@ export function AppLayout() {
     if (!isDesktop) setSidebarOpen(false);
   }, [pathname, isDesktop]);
 
+  // Escape closes mobile drawer (common a11y practice)
+  useEffect(() => {
+    if (!sidebarOpen || isDesktop) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setSidebarOpen(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [sidebarOpen, isDesktop]);
+
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((v) => !v);
   }, []);
