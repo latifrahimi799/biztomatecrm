@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, Plus, Upload } from 'lucide-react';
 import { Button } from '../components/ui/Button';
@@ -9,19 +9,36 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { useCrmStore } from '../store/crmStore';
 import { useFilteredEntities } from '../hooks/useFilteredEntities';
-import type { ContactLifecycle } from '../types/crm';
-import { formatDate } from '../lib/format';
+import type { ContactLifecycle, Deal } from '../types/crm';
+import { formatDate, formatMoney } from '../lib/format';
 import { contactsToCsv, downloadContactsCsv, parseContactsCsvForImport } from '../lib/contactCsv';
 
 const lifecycles: ContactLifecycle[] = ['subscriber', 'lead', 'customer', 'churned'];
 
+function dealTotalsForContact(deals: Deal[], contactId: string) {
+  const linked = deals.filter((d) => d.contactIds.includes(contactId));
+  if (linked.length === 0) return { count: 0, total: 0, currency: 'CAD' as string };
+  const currency = linked[0].currency || 'CAD';
+  const total = linked.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+  return { count: linked.length, total, currency };
+}
+
 export function ContactsPage() {
   const { contacts, hasFilter } = useFilteredEntities();
   const companies = useCrmStore((s) => s.companies);
+  const deals = useCrmStore((s) => s.deals);
   const addContact = useCrmStore((s) => s.addContact);
   const defaultOwnerId = useCrmStore((s) => s.defaultOwnerId);
   const remoteSyncStatus = useCrmStore((s) => s.remoteSyncStatus);
   const remoteSyncError = useCrmStore((s) => s.remoteSyncError);
+
+  const dealsByContact = useMemo(() => {
+    const map = new Map<string, { count: number; total: number; currency: string }>();
+    for (const c of contacts) {
+      map.set(c.id, dealTotalsForContact(deals, c.id));
+    }
+    return map;
+  }, [contacts, deals]);
   const [open, setOpen] = useState(false);
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -168,6 +185,7 @@ export function ContactsPage() {
                 <th className="px-5 py-3 font-medium">Name</th>
                 <th className="px-5 py-3 font-medium">Email</th>
                 <th className="px-5 py-3 font-medium">Company</th>
+                <th className="px-5 py-3 font-medium">Deals</th>
                 <th className="px-5 py-3 font-medium">Lifecycle</th>
                 <th className="px-5 py-3 font-medium">Updated</th>
               </tr>
@@ -175,6 +193,11 @@ export function ContactsPage() {
             <tbody>
               {contacts.map((c) => {
                 const co = companies.find((x) => x.id === c.companyId);
+                const dealInfo = dealsByContact.get(c.id) ?? {
+                  count: 0,
+                  total: 0,
+                  currency: 'CAD',
+                };
                 return (
                   <tr key={c.id} className="border-t border-[var(--color-border)]/60">
                     <td className="px-5 py-3">
@@ -184,6 +207,20 @@ export function ContactsPage() {
                     </td>
                     <td className="px-5 py-3 text-muted">{c.email}</td>
                     <td className="px-5 py-3 text-muted">{co?.name ?? '—'}</td>
+                    <td className="px-5 py-3">
+                      {dealInfo.count === 0 ? (
+                        <span className="text-muted">—</span>
+                      ) : (
+                        <div>
+                          <div className="font-medium text-gray-900">
+                            {formatMoney(dealInfo.total, dealInfo.currency)}
+                          </div>
+                          <div className="text-xs text-muted">
+                            {dealInfo.count} deal{dealInfo.count === 1 ? '' : 's'}
+                          </div>
+                        </div>
+                      )}
+                    </td>
                     <td className="px-5 py-3">
                       <Badge tone="default">{c.lifecycle}</Badge>
                     </td>

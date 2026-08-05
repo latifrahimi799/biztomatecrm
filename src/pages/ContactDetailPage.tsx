@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Mail, Trash2 } from 'lucide-react';
+import { ArrowLeft, Mail, Plus, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Card, CardTitle } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
@@ -9,14 +9,22 @@ import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
 import { Select } from '../components/ui/Select';
 import { useCrmStore } from '../store/crmStore';
-import type { ContactLifecycle } from '../types/crm';
-import { formatDateTime } from '../lib/format';
+import type { ContactLifecycle, DealStage } from '../types/crm';
+import { formatDateTime, formatMoney } from '../lib/format';
 import { getMicrosoftMailBlockReason } from '../lib/microsoft/mailPrereqs';
 import { sendMailViaGraph } from '../lib/microsoft/sendMail';
 import { applyMergeFields } from '../lib/templateMerge';
-import { ACTIVITY_TYPE_LABEL } from '../types/crm';
+import { ACTIVITY_TYPE_LABEL, DEAL_STAGE_LABEL } from '../types/crm';
 
 const lifecycles: ContactLifecycle[] = ['subscriber', 'lead', 'customer', 'churned'];
+const DEAL_STAGES: DealStage[] = [
+  'lead',
+  'qualified',
+  'proposal',
+  'negotiation',
+  'won',
+  'lost',
+];
 
 export function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,11 +36,21 @@ export function ContactDetailPage() {
   const updateContact = useCrmStore((s) => s.updateContact);
   const removeContact = useCrmStore((s) => s.removeContact);
   const addActivity = useCrmStore((s) => s.addActivity);
+  const addDeal = useCrmStore((s) => s.addDeal);
+  const defaultOwnerId = useCrmStore((s) => s.defaultOwnerId);
 
   const contact = contacts.find((c) => c.id === id);
 
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteSubject, setNoteSubject] = useState('');
+  const [dealOpen, setDealOpen] = useState(false);
+  const [dealForm, setDealForm] = useState({
+    name: '',
+    value: '0',
+    currency: 'CAD',
+    probability: '20',
+    stage: 'lead' as DealStage,
+  });
   const [mailSubject, setMailSubject] = useState('');
   const [mailBody, setMailBody] = useState('');
   const [mailSending, setMailSending] = useState(false);
@@ -59,6 +77,13 @@ export function ContactDetailPage() {
     [deals, id],
   );
 
+  const dealsTotal = useMemo(() => {
+    if (relatedDeals.length === 0) return null;
+    const currency = relatedDeals[0].currency || 'CAD';
+    const total = relatedDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0);
+    return { total, currency, count: relatedDeals.length };
+  }, [relatedDeals]);
+
   const timeline = useMemo(() => {
     return activities
       .filter((a) => a.relatedType === 'contact' && a.relatedId === id)
@@ -75,6 +100,29 @@ export function ContactDetailPage() {
 
   const company = companies.find((c) => c.id === contact.companyId);
   const mailBlock = getMicrosoftMailBlockReason();
+
+  function submitDeal(e: React.FormEvent) {
+    e.preventDefault();
+    if (!dealForm.name.trim() || !contact) return;
+    addDeal({
+      name: dealForm.name.trim(),
+      companyId: contact.companyId,
+      contactIds: [contact.id],
+      stage: dealForm.stage,
+      value: Number(dealForm.value) || 0,
+      currency: dealForm.currency.trim() || 'CAD',
+      probability: Math.min(100, Math.max(0, Number(dealForm.probability) || 0)),
+      ownerId: defaultOwnerId ?? contact.ownerId ?? 'user-1',
+    });
+    setDealOpen(false);
+    setDealForm({
+      name: '',
+      value: '0',
+      currency: 'CAD',
+      probability: '20',
+      stage: 'lead',
+    });
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -218,20 +266,70 @@ export function ContactDetailPage() {
 
         <div className="space-y-6">
           <Card>
-            <CardTitle>Related deals</CardTitle>
-            <ul className="mt-3 space-y-2 text-sm">
-              {relatedDeals.length === 0 ? (
-                <li className="text-muted">No deals linked</li>
-              ) : (
-                relatedDeals.map((d) => (
-                  <li key={d.id}>
-                    <Link to={`/deals/${d.id}`} className="font-medium text-brand hover:underline">
-                      {d.name}
-                    </Link>
-                  </li>
-                ))
-              )}
-            </ul>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <CardTitle>Deals</CardTitle>
+                {dealsTotal ? (
+                  <p className="mt-1 text-sm text-muted">
+                    {dealsTotal.count} deal{dealsTotal.count === 1 ? '' : 's'} ·{' '}
+                    <span className="font-medium text-gray-900">
+                      {formatMoney(dealsTotal.total, dealsTotal.currency)}
+                    </span>{' '}
+                    total
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm text-muted">No deals yet</p>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="!px-2 !py-1 text-xs"
+                onClick={() => setDealOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add deal
+              </Button>
+            </div>
+            {relatedDeals.length > 0 ? (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="text-xs text-muted">
+                    <tr>
+                      <th className="pb-2 pr-3 font-medium">Deal</th>
+                      <th className="pb-2 pr-3 font-medium">Stage</th>
+                      <th className="pb-2 font-medium">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {relatedDeals.map((d) => (
+                      <tr key={d.id} className="border-t border-[var(--color-border)]/60">
+                        <td className="py-2.5 pr-3">
+                          <Link
+                            to={`/deals/${d.id}`}
+                            className="font-medium text-brand hover:underline"
+                          >
+                            {d.name}
+                          </Link>
+                        </td>
+                        <td className="py-2.5 pr-3">
+                          <Badge
+                            tone={
+                              d.stage === 'won' ? 'success' : d.stage === 'lost' ? 'error' : 'default'
+                            }
+                          >
+                            {DEAL_STAGE_LABEL[d.stage]}
+                          </Badge>
+                        </td>
+                        <td className="py-2.5 font-medium text-gray-900">
+                          {formatMoney(d.value, d.currency)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
           </Card>
 
           <Card>
@@ -356,6 +454,72 @@ export function ContactDetailPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal open={dealOpen} onClose={() => setDealOpen(false)} title="Add deal">
+        <form onSubmit={submitDeal} className="space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-medium">Deal name *</label>
+            <Input
+              required
+              value={dealForm.name}
+              onChange={(e) => setDealForm((f) => ({ ...f, name: e.target.value }))}
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium">Amount</label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={dealForm.value}
+                onChange={(e) => setDealForm((f) => ({ ...f, value: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Currency</label>
+              <Input
+                value={dealForm.currency}
+                onChange={(e) => setDealForm((f) => ({ ...f, currency: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium">Probability %</label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={dealForm.probability}
+                onChange={(e) => setDealForm((f) => ({ ...f, probability: e.target.value }))}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium">Stage</label>
+            <Select
+              value={dealForm.stage}
+              onChange={(e) =>
+                setDealForm((f) => ({ ...f, stage: e.target.value as DealStage }))
+              }
+            >
+              {DEAL_STAGES.map((s) => (
+                <option key={s} value={s}>
+                  {DEAL_STAGE_LABEL[s]}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {company ? (
+            <p className="text-xs text-muted">Linked company: {company.name}</p>
+          ) : null}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="outline" onClick={() => setDealOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit">Create deal</Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );
