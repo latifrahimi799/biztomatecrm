@@ -1,7 +1,9 @@
 import {
+  LEAD_LOCATION_LABEL,
   LEAD_STATUS_LABEL,
   LEAD_STATUSES,
   type Lead,
+  type LeadLocationType,
   type LeadStatus,
   normalizeLeadContactFields,
 } from '../types/crm';
@@ -58,10 +60,19 @@ function parseStatus(raw: string): LeadStatus {
   return 'dm';
 }
 
+function parseLocationType(raw: string): LeadLocationType {
+  const key = raw.toLowerCase().trim();
+  if (key === 'branch' || key === 'br') return 'branch';
+  if (key === 'hq' || key === 'headquarters' || key === 'head office') return 'hq';
+  return 'hq';
+}
+
 export function leadsToCsv(leads: Lead[]): string {
   const headers = [
     'Name',
     'Company',
+    'City',
+    'HQ / Branch',
     'Phone numbers',
     'Emails',
     'Website',
@@ -73,10 +84,13 @@ export function leadsToCsv(leads: Lead[]): string {
 
   for (const raw of leads) {
     const l = normalizeLeadContactFields(raw);
+    const loc = l.locationType === 'branch' ? 'branch' : 'hq';
     lines.push(
       [
         l.name,
         l.company ?? '',
+        l.city ?? '',
+        LEAD_LOCATION_LABEL[loc],
         joinList(l.phones),
         joinList(l.emails.length ? l.emails : l.email ? [l.email] : []),
         l.website ?? '',
@@ -105,6 +119,8 @@ export function downloadLeadsCsv(filename: string, csv: string) {
 type ImportKeys =
   | 'name'
   | 'company'
+  | 'city'
+  | 'locationType'
   | 'phones'
   | 'emails'
   | 'website'
@@ -118,6 +134,13 @@ const HEADER_TO_KEY: Record<string, ImportKeys> = {
   lead: 'name',
   'lead name': 'name',
   company: 'company',
+  city: 'city',
+  location: 'city',
+  'hq / branch': 'locationType',
+  'hq/branch': 'locationType',
+  locationtype: 'locationType',
+  'location type': 'locationType',
+  type: 'locationType',
   phone: 'phones',
   phones: 'phones',
   'phone number': 'phones',
@@ -195,6 +218,8 @@ export function parseLeadsCsvForImport(
         email,
         emails,
         company: (bag.company ?? '').trim() || undefined,
+        city: (bag.city ?? '').trim() || undefined,
+        locationType: parseLocationType(bag.locationType ?? 'hq'),
         phone: phones[0],
         phones,
         website: (bag.website ?? '').trim() || undefined,

@@ -104,6 +104,8 @@ type LeadRow = {
   phone: string | null;
   phones: string[] | null;
   website: string | null;
+  city: string | null;
+  location_type: string | null;
   status: string;
   score: number;
   source: string;
@@ -242,6 +244,10 @@ function mapContact(row: ContactRow): Contact {
 }
 
 function mapLead(row: LeadRow): Lead {
+  const loc =
+    row.location_type === 'branch' || row.location_type === 'hq'
+      ? row.location_type
+      : 'hq';
   return normalizeLeadContactFields({
     id: row.id,
     name: row.name,
@@ -251,6 +257,8 @@ function mapLead(row: LeadRow): Lead {
     phone: row.phone ?? undefined,
     phones: row.phones ?? undefined,
     website: row.website ?? undefined,
+    city: row.city?.trim() || undefined,
+    locationType: loc,
     status: normalizeLeadStatus(row.status),
     score: num(row.score),
     source: row.source ?? '',
@@ -410,6 +418,8 @@ function contactToRow(c: Contact, ownerId: string) {
 
 function leadToRow(l: Lead, ownerId: string) {
   const n = normalizeLeadContactFields(l);
+  const locationType =
+    n.locationType === 'branch' || n.locationType === 'hq' ? n.locationType : 'hq';
   return {
     id: n.id,
     name: n.name,
@@ -419,6 +429,8 @@ function leadToRow(l: Lead, ownerId: string) {
     phone: n.phone ?? null,
     phones: n.phones,
     website: n.website?.trim() || null,
+    city: n.city?.trim() || null,
+    location_type: locationType,
     status: normalizeLeadStatus(n.status),
     score: n.score,
     source: n.source ?? '',

@@ -24,6 +24,7 @@ import {
   deleteCompanyRemote,
   deleteContactRemote,
   deleteDealRemote,
+  deleteLeadRemote,
   deleteTemplateRemote,
   isUuid,
   type CrmWorkspacePayload,
@@ -129,6 +130,10 @@ function queueLeadUpsert(lead: Lead, ownerId: string | null) {
     }
     logRemote('lead upsert', e);
   });
+}
+function queueLeadDelete(id: string) {
+  if (!isSupabaseConfigured) return;
+  void deleteLeadRemote(id).then((e) => logRemote('lead delete', e));
 }
 function queueDealUpsert(deal: Deal, ownerId: string | null) {
   if (!isSupabaseConfigured) return;
@@ -388,6 +393,8 @@ const seedLeads: Lead[] = [
     phone: '+1 555 0101',
     phones: ['+1 555 0101'],
     website: 'https://brightpath.example',
+    city: 'Toronto',
+    locationType: 'hq',
     status: 'presentation',
     score: 72,
     source: 'Website form',
@@ -402,6 +409,8 @@ const seedLeads: Lead[] = [
     emails: ['d.park@example.org'],
     company: 'Urban Logistics Co',
     phones: [],
+    city: 'Vancouver',
+    locationType: 'branch',
     status: 'dm',
     score: 45,
     source: 'Referral',
@@ -565,6 +574,7 @@ interface CrmState {
 
   addLead: (patch: Partial<Lead>) => void;
   updateLead: (id: Id, patch: Partial<Lead>) => void;
+  removeLead: (id: Id) => void;
   convertLead: (
     leadId: Id,
     overrides?: Partial<Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>>,
@@ -900,6 +910,8 @@ export const useCrmStore = create<CrmState>()(
           phone: patch.phone,
           phones: patch.phones,
           website: patch.website,
+          city: patch.city?.trim() || undefined,
+          locationType: patch.locationType === 'branch' ? 'branch' : 'hq',
           status: patch.status ?? 'dm',
           score: patch.score ?? 0,
           source: patch.source ?? 'Manual',
@@ -919,12 +931,33 @@ export const useCrmStore = create<CrmState>()(
             return normalizeLeadContactFields({
               ...x,
               ...patch,
+              city:
+                patch.city !== undefined
+                  ? patch.city.trim() || undefined
+                  : x.city,
+              locationType:
+                patch.locationType !== undefined
+                  ? patch.locationType === 'branch'
+                    ? 'branch'
+                    : 'hq'
+                  : x.locationType ?? 'hq',
               updatedAt: now(),
             });
           }),
         }));
         const row = get().leads.find((x) => x.id === id);
         if (row) queueLeadUpsert(row, remoteOwner(get()));
+      },
+
+      removeLead: (id) => {
+        set((s) => ({
+          leads: s.leads.filter((x) => x.id !== id),
+          campaigns: s.campaigns.map((c) => ({
+            ...c,
+            leadIds: c.leadIds.filter((lid) => lid !== id),
+          })),
+        }));
+        queueLeadDelete(id);
       },
 
       convertLead: (leadId, overrides = {}) => {

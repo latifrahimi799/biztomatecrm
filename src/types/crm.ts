@@ -125,6 +125,10 @@ export interface Lead {
   /** All phone numbers; first is primary. */
   phones: string[];
   website?: string;
+  /** City / location for filtering. */
+  city?: string;
+  /** HQ vs Branch office type. */
+  locationType?: LeadLocationType;
   status: LeadStatus;
   score: number;
   source: string;
@@ -133,6 +137,15 @@ export interface Lead {
   updatedAt: string;
   notes?: string;
 }
+
+export type LeadLocationType = 'hq' | 'branch';
+
+export const LEAD_LOCATION_TYPES: LeadLocationType[] = ['hq', 'branch'];
+
+export const LEAD_LOCATION_LABEL: Record<LeadLocationType, string> = {
+  hq: 'HQ',
+  branch: 'Branch',
+};
 
 /** Normalize lead contact fields so emails/phones always exist. */
 export function normalizeLeadContactFields<T extends Partial<Lead>>(lead: T): T & {
