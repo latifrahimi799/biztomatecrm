@@ -13,7 +13,6 @@ import {
   Settings,
   Target,
   Users,
-  X,
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { useAuthStore } from '../../store/authStore';
@@ -60,28 +59,16 @@ export function Sidebar({ open, isDesktop, onClose }: SidebarProps) {
             ),
       )}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-brand/10 bg-gradient-to-r from-brand/10 via-white to-brand-secondary/10 px-4 py-4">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-secondary text-sm font-bold text-white shadow-md shadow-brand/30">
-            B
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-sm font-bold tracking-tight text-gray-900">
-              Biztomate
-            </div>
-            <div className="text-xs font-medium text-brand">CRM</div>
-          </div>
+      <div className="flex items-center gap-2.5 border-b border-brand/10 bg-gradient-to-r from-brand/10 via-white to-brand-secondary/10 px-5 py-4">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-brand-secondary text-sm font-bold text-white shadow-md shadow-brand/30">
+          B
         </div>
-        {!isDesktop ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-brand/10 hover:text-brand"
-            aria-label="Close menu"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        ) : null}
+        <div className="min-w-0">
+          <div className="truncate text-sm font-bold tracking-tight text-gray-900">
+            Biztomate
+          </div>
+          <div className="text-xs font-medium text-brand">CRM</div>
+        </div>
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
